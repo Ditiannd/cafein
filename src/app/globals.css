@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-light: #F9F8F6; /* Soft off-white */
+  --color-brand-dark: #1A1A1A; /* Deep charcoal */
+  --color-brand-accent: #D4AF37; /* Muted gold / taupe */
+  --color-brand-accent-hover: #B5952F;
+  --color-brand-muted: #8E8E8E;
+  
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
+}
+
+:root {
+  --background: var(--color-brand-dark);
+  --foreground: var(--color-brand-light);
+}
+
+.light {
+  --background: var(--color-brand-light);
+  --foreground: var(--color-brand-dark);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+}
+
+/* Smooth scrolling for the whole page */
+html {
+  scroll-behavior: smooth;
+}
