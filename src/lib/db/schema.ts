@@ -114,6 +114,24 @@ export const events = pgTable('events', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
+export const inventoryItems = pgTable('inventory_items', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  quantity: integer('quantity').notNull().default(0),
+  unit: text('unit').notNull(),
+  minThreshold: integer('min_threshold').notNull().default(10),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const expenses = pgTable('expenses', {
+  id: serial('id').primaryKey(),
+  description: text('description').notNull(),
+  amount: integer('amount').notNull(),
+  date: timestamp('date').defaultNow().notNull(),
+  category: text('category'),
+  recordedById: uuid('recorded_by_id').references(() => users.id, { onDelete: 'set null' }),
+});
+
 // --- Relations ---
 
 export const categoriesRelations = relations(categories, ({ many }) => ({
@@ -166,5 +184,12 @@ export const reviewsRelations = relations(reviews, ({ one }) => ({
   order: one(orders, {
     fields: [reviews.orderId],
     references: [orders.id],
+  }),
+}));
+
+export const expensesRelations = relations(expenses, ({ one }) => ({
+  recordedBy: one(users, {
+    fields: [expenses.recordedById],
+    references: [users.id],
   }),
 }));
