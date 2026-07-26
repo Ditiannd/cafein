@@ -17,10 +17,11 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Environment variables must be present at build time
-# We can provide dummy ones or require them to be passed as build args.
-# For production build without actual DB connection, we just need them to be strings.
-ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
-ENV JWT_SECRET="dummy_secret"
+# Allow Coolify or CI/CD to pass build args, falling back to dummy strings if not provided
+ARG DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
+ARG JWT_SECRET="dummy_secret"
+ENV DATABASE_URL=${DATABASE_URL}
+ENV JWT_SECRET=${JWT_SECRET}
 
 # Next.js telemetry is disabled
 ENV NEXT_TELEMETRY_DISABLED=1
