@@ -21,6 +21,7 @@ export default function LoginPage() {
 
     try {
       const user = await login(email, password);
+      router.refresh();
       if (user.role === 'admin') {
         router.push('/admin/overview');
       } else {

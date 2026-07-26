@@ -9,7 +9,12 @@ if (!connectionString) {
 }
 
 // For query purposes (connection pooling)
-const queryClient = postgres(connectionString);
+const queryClient = postgres(connectionString, {
+  max: 10,
+  idle_timeout: 20,
+  connect_timeout: 10,
+  prepare: false,
+});
 export const db = drizzle(queryClient, { schema });
 
 // For migrations (single connection)
