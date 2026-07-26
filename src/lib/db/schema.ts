@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, uuid, pgEnum } from 'drizzle-orm/pg-core';
+import { pgTable, text, serial, integer, boolean, timestamp, uuid, pgEnum, real } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 // --- Enums ---
@@ -11,6 +11,18 @@ export const orderStatusEnum = pgEnum('order_status', [
 ]);
 export const orderTypeEnum = pgEnum('order_type', ['dine_in', 'takeaway']);
 export const paymentMethodEnum = pgEnum('payment_method', ['cash', 'qris', 'card', 'bank_transfer']);
+export const tableShapeEnum = pgEnum('table_shape', [
+  'square', 'rectangle', 'round', 'oval', 'bar_seat', 'sofa', 'private_room'
+]);
+export const tableStatusEnum = pgEnum('table_status', [
+  'available', 'reserved', 'occupied', 'cleaning', 'out_of_service'
+]);
+export const staticObjectTypeEnum = pgEnum('static_object_type', [
+  'wall', 'counter', 'cashier', 'kitchen', 'plant', 'window', 'door', 'decoration', 'waiting_area', 'restroom', 'divider', 'custom'
+]);
+export const reservationStatusEnum = pgEnum('reservation_status', [
+  'confirmed', 'seated', 'completed', 'cancelled', 'expired'
+]);
 
 // --- Tables ---
 
@@ -64,6 +76,7 @@ export const orders = pgTable('orders', {
   customerName: text('customer_name'),
   orderType: orderTypeEnum('order_type').default('dine_in').notNull(),
   tableNumber: text('table_number'),
+  tableId: uuid('table_id'),
   subtotal: integer('subtotal').notNull(),
   discountTotal: integer('discount_total').default(0).notNull(),
   tax: integer('tax').notNull(),
@@ -132,6 +145,70 @@ export const expenses = pgTable('expenses', {
   recordedById: uuid('recorded_by_id').references(() => users.id, { onDelete: 'set null' }),
 });
 
+export const layoutVersions = pgTable('layout_versions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  name: text('name').notNull(),
+  isActive: boolean('is_active').default(false).notNull(),
+  canvasSettings: text('canvas_settings'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const tables = pgTable('tables', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  layoutVersionId: uuid('layout_version_id').references(() => layoutVersions.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  capacity: integer('capacity').notNull().default(2),
+  shape: tableShapeEnum('shape').notNull().default('round'),
+  x: real('x').notNull().default(500),
+  y: real('y').notNull().default(500),
+  width: real('width').notNull().default(100),
+  height: real('height').notNull().default(100),
+  rotation: real('rotation').notNull().default(0),
+  scale: real('scale').notNull().default(1),
+  zIndex: integer('z_index').notNull().default(1),
+  status: tableStatusEnum('status').notNull().default('available'),
+  qrCode: text('qr_code').unique(),
+  notes: text('notes'),
+  isLocked: boolean('is_locked').default(false).notNull(),
+  isHidden: boolean('is_hidden').default(false).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const layoutObjects = pgTable('layout_objects', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  layoutVersionId: uuid('layout_version_id').references(() => layoutVersions.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  type: staticObjectTypeEnum('type').notNull().default('decoration'),
+  x: real('x').notNull().default(500),
+  y: real('y').notNull().default(500),
+  width: real('width').notNull().default(100),
+  height: real('height').notNull().default(100),
+  rotation: real('rotation').notNull().default(0),
+  scale: real('scale').notNull().default(1),
+  zIndex: integer('z_index').notNull().default(1),
+  isLocked: boolean('is_locked').default(false).notNull(),
+  isHidden: boolean('is_hidden').default(false).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const reservations = pgTable('reservations', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  tableId: uuid('table_id').references(() => tables.id, { onDelete: 'cascade' }).notNull(),
+  customerName: text('customer_name').notNull(),
+  customerPhone: text('customer_phone'),
+  customerEmail: text('customer_email'),
+  reservationTime: timestamp('reservation_time').notNull(),
+  durationMinutes: integer('duration_minutes').notNull().default(90),
+  guestCount: integer('guest_count').notNull().default(2),
+  status: reservationStatusEnum('status').notNull().default('confirmed'),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
 // --- Relations ---
 
 export const categoriesRelations = relations(categories, ({ many }) => ({
@@ -167,6 +244,10 @@ export const ordersRelations = relations(orders, ({ one, many }) => ({
     fields: [orders.id],
     references: [reviews.orderId],
   }),
+  table: one(tables, {
+    fields: [orders.tableId],
+    references: [tables.id],
+  }),
 }));
 
 export const orderItemsRelations = relations(orderItems, ({ one }) => ({
@@ -193,3 +274,32 @@ export const expensesRelations = relations(expenses, ({ one }) => ({
     references: [users.id],
   }),
 }));
+
+export const layoutVersionsRelations = relations(layoutVersions, ({ many }) => ({
+  tables: many(tables),
+  layoutObjects: many(layoutObjects),
+}));
+
+export const tablesRelations = relations(tables, ({ one, many }) => ({
+  layoutVersion: one(layoutVersions, {
+    fields: [tables.layoutVersionId],
+    references: [layoutVersions.id],
+  }),
+  reservations: many(reservations),
+  orders: many(orders),
+}));
+
+export const layoutObjectsRelations = relations(layoutObjects, ({ one }) => ({
+  layoutVersion: one(layoutVersions, {
+    fields: [layoutObjects.layoutVersionId],
+    references: [layoutVersions.id],
+  }),
+}));
+
+export const reservationsRelations = relations(reservations, ({ one }) => ({
+  table: one(tables, {
+    fields: [reservations.tableId],
+    references: [tables.id],
+  }),
+}));
+

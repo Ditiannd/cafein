@@ -30,6 +30,7 @@ function MenuContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const table = searchParams.get('table');
+  const tableId = searchParams.get('tableId');
 
   // Modifiers state
   const [iceLevel, setIceLevel] = useState('Normal');
@@ -88,6 +89,7 @@ function MenuContent() {
         customerName: 'Online Customer',
         orderType: 'dine_in',
         tableNumber: table || undefined,
+        tableId: tableId || undefined,
         paymentMethod: 'bank_transfer',
       });
 
@@ -145,7 +147,11 @@ function MenuContent() {
             <Coffee className="w-6 h-6 text-[var(--color-brand-accent)]" />
             <div className="flex flex-col">
               <h1 className="font-heading font-semibold text-lg uppercase tracking-widest text-foreground">Cafein Today</h1>
-              {table && <span className="text-[10px] text-[var(--color-brand-accent)] font-semibold uppercase">Table {table}</span>}
+              {(table || tableId) && (
+                <span className="text-[10px] bg-[var(--color-brand-accent)]/20 text-[var(--color-brand-accent)] px-2 py-0.5 rounded font-mono font-bold uppercase border border-[var(--color-brand-accent)]/30 w-fit mt-0.5">
+                  Table {table || tableId}
+                </span>
+              )}
             </div>
           </Link>
           <button 

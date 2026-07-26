@@ -1,283 +1,451 @@
 'use client';
 
-import React, { useState } from 'react';
-import { RefreshCw, Power, PowerOff, Circle, RectangleHorizontal, Sofa, Square, ShoppingBag, Clock, CheckCircle2, LucideIcon } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { 
+  RefreshCw, Circle, RectangleHorizontal, Sofa, Square, ShoppingBag, Clock, 
+  CheckCircle2, Coffee, Utensils, Box, Disc, Users, AlertTriangle, Sparkles, Check, X
+} from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { api, TableItem, LayoutObjectItem, LayoutVersion, TableShape, StaticObjectType, TableStatus } from '@/lib/api';
 
-const TABLE_ICONS: Record<string, LucideIcon> = {
-  round: Circle,
+const SHAPE_ICONS: Record<TableShape, any> = {
+  square: Square,
   rectangle: RectangleHorizontal,
-  couch: Sofa,
-  bar: Square
+  round: Circle,
+  oval: Disc,
+  bar_seat: Utensils,
+  sofa: Sofa,
+  private_room: Box,
 };
 
-interface TableModel {
-  id: string;
-  label: string;
-  type: string;
-  capacity: number;
-  isAvailable: boolean;
-  x: number;
-  y: number;
-  order?: {
-    ticketNumber: string;
-    items: string[];
-    time: string;
-    total: number;
-  }
-}
+const OBJECT_ICONS: Record<StaticObjectType, any> = {
+  wall: Square,
+  counter: RectangleHorizontal,
+  cashier: Coffee,
+  kitchen: Utensils,
+  plant: Sparkles,
+  window: Square,
+  door: Box,
+  decoration: Sparkles,
+  waiting_area: Sofa,
+  restroom: Users,
+  divider: RectangleHorizontal,
+  custom: Box,
+};
 
-const INITIAL_TABLES: TableModel[] = [
-  { id: '1', label: 'T1', type: 'round', capacity: 2, isAvailable: false, x: 25, y: 25, order: { ticketNumber: '1042', items: ['2x Signature Latte', '1x Butter Croissant'], time: '45 mins ago', total: 110000 } },
-  { id: '2', label: 'T2', type: 'round', capacity: 2, isAvailable: true, x: 75, y: 25 },
-  { id: '3', label: 'T3', type: 'rectangle', capacity: 4, isAvailable: false, x: 50, y: 50, order: { ticketNumber: '1045', items: ['4x Kyoto Matcha Blend', '2x Tiramisu'], time: '1 hr 15 mins ago', total: 240000 } },
-  { id: '4', label: 'T4', type: 'rectangle', capacity: 4, isAvailable: true, x: 25, y: 75 },
-  { id: '5', label: 'C1', type: 'couch', capacity: 6, isAvailable: false, x: 75, y: 75, order: { ticketNumber: '1048', items: ['2x Americano', '1x Filter Coffee'], time: '20 mins ago', total: 95000 } },
-  { id: '6', label: 'Bar', type: 'bar', capacity: 1, isAvailable: true, x: 50, y: 15 },
-];
+const STATUS_COLORS: Record<TableStatus, { bg: string; border: string; text: string; label: string; badgeBg: string }> = {
+  available: { bg: 'bg-emerald-500/15', border: 'border-emerald-500', text: 'text-emerald-400', label: 'Available', badgeBg: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' },
+  reserved: { bg: 'bg-amber-500/15', border: 'border-amber-500', text: 'text-amber-400', label: 'Reserved', badgeBg: 'bg-amber-500/20 text-amber-400 border-amber-500/40' },
+  occupied: { bg: 'bg-rose-500/15', border: 'border-rose-500', text: 'text-rose-400', label: 'Occupied', badgeBg: 'bg-rose-500/20 text-rose-400 border-rose-500/40' },
+  cleaning: { bg: 'bg-sky-500/15', border: 'border-sky-500', text: 'text-sky-400', label: 'Cleaning', badgeBg: 'bg-sky-500/20 text-sky-400 border-sky-500/40' },
+  out_of_service: { bg: 'bg-zinc-800/60', border: 'border-zinc-600', text: 'text-zinc-500', label: 'Out of Service', badgeBg: 'bg-zinc-800 text-zinc-500 border-zinc-700' },
+};
 
 export default function BaristaTablesPage() {
-  const [tables, setTables] = useState<TableModel[]>(INITIAL_TABLES);
-  const [isStoreOpen, setIsStoreOpen] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [updating, setUpdating] = useState(false);
+  const [layoutVersion, setLayoutVersion] = useState<LayoutVersion | null>(null);
+  const [tables, setTables] = useState<TableItem[]>([]);
+  const [layoutObjects, setLayoutObjects] = useState<LayoutObjectItem[]>([]);
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
+  const [storeStatus, setStoreStatus] = useState<{ isOpen: boolean }>({ isOpen: true });
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+
+  // --- Responsive Scale Calculation ---
+  useEffect(() => {
+    const updateScale = () => {
+      if (containerRef.current) {
+        const { width, height } = containerRef.current.getBoundingClientRect();
+        const scaleX = width / 1200;
+        const scaleY = height / 800;
+        setScale(Math.min(scaleX, scaleY, 1.3)); // maintain aspect ratio
+      }
+    };
+    updateScale();
+    window.addEventListener('resize', updateScale);
+    return () => window.removeEventListener('resize', updateScale);
+  }, []);
+
+  // --- Real-time Layout & Status Fetching ---
+  const fetchLayoutAndStatus = useCallback(async (isSilent = false) => {
+    try {
+      if (!isSilent) setLoading(true);
+      const [layoutData, statusData] = await Promise.all([
+        api.floor.getLayout(),
+        api.store.getStatus().catch(() => ({ isOpen: true, announcementBanner: null })),
+      ]);
+      setLayoutVersion(layoutData.layoutVersion);
+      setTables(layoutData.tables);
+      setLayoutObjects(layoutData.layoutObjects);
+      setStoreStatus({ isOpen: statusData.isOpen });
+    } catch (error) {
+      console.error('Error fetching layout:', error);
+    } finally {
+      if (!isSilent) setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchLayoutAndStatus();
+    const interval = setInterval(() => {
+      fetchLayoutAndStatus(true); // silent poll every 4s
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [fetchLayoutAndStatus]);
+
+  // --- Table Status Action ---
+  const handleUpdateStatus = async (status: TableStatus, completeActiveOrders = false) => {
+    if (!selectedTableId) return;
+    try {
+      setUpdating(true);
+      await api.tables.updateStatus(selectedTableId, status, completeActiveOrders);
+      await fetchLayoutAndStatus(true);
+    } catch (error) {
+      console.error('Failed to update table status:', error);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleToggleStoreStatus = async () => {
+    try {
+      const nextOpen = !storeStatus.isOpen;
+      await api.store.setStatus({ isOpen: nextOpen });
+      setStoreStatus({ isOpen: nextOpen });
+    } catch (error) {
+      console.error('Failed to toggle store status:', error);
+    }
+  };
 
   const selectedTable = tables.find(t => t.id === selectedTableId);
 
-  const toggleTableStatus = (id: string) => {
-    setTables(tables.map(t => {
-      if (t.id === id) {
-        if (t.isAvailable) {
-          // Mark as Occupied (Mock a new order arriving)
-          return {
-            ...t,
-            isAvailable: false,
-            order: {
-              ticketNumber: Math.floor(1000 + Math.random() * 9000).toString(),
-              items: ['Walk-in Order'],
-              time: 'Just now',
-              total: 0
-            }
-          };
-        } else {
-          // Clear Table (Mark as available)
-          return {
-            ...t,
-            isAvailable: true,
-            order: undefined
-          };
-        }
-      }
-      return t;
-    }));
-  };
-
-  const resetAllTables = () => {
-    setTables(tables.map(t => ({ ...t, isAvailable: true, order: undefined })));
-    setSelectedTableId(null);
-  };
-
-  const toggleStoreStatus = () => {
-    setIsStoreOpen(!isStoreOpen);
-  };
-
-  const occupiedCount = tables.filter(t => !t.isAvailable).length;
-  const totalCount = tables.length;
+  if (loading && tables.length === 0) {
+    return (
+      <div className="flex h-full items-center justify-center bg-zinc-950 text-zinc-400">
+        <div className="flex flex-col items-center gap-3">
+          <RefreshCw className="w-8 h-8 animate-spin text-amber-500" />
+          <p className="text-sm font-medium">Synchronizing Canonical Floor Plan...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="p-8 h-full flex flex-col">
-      <div className="max-w-7xl mx-auto w-full flex-1 flex flex-col">
-        
-        {/* Header & Controls */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8 shrink-0">
+    <div className="flex flex-col h-[calc(100vh-4rem)] bg-zinc-950 text-zinc-100 overflow-hidden font-sans select-none">
+      
+      {/* Header Bar */}
+      <header className="flex items-center justify-between px-6 py-3 bg-zinc-900/90 border-b border-zinc-800/80 backdrop-blur-md z-20 shrink-0">
+        <div className="flex items-center gap-4">
           <div>
-            <h1 className="text-3xl font-heading font-bold text-white mb-2">Store & Tables</h1>
-            <p className="text-gray-400">Spatial overview of floor plan and active orders.</p>
-          </div>
-          
-          <div className="flex items-center gap-4">
-            <Button 
-              variant="outline" 
-              onClick={resetAllTables}
-              className="bg-background border-white/20 text-gray-300 hover:text-white hover:bg-white/5"
-            >
-              <RefreshCw className="w-4 h-4 mr-2" /> Reset All Tables
-            </Button>
-            <button 
-              onClick={toggleStoreStatus}
-              className={`flex items-center gap-2 px-6 py-2.5 rounded-lg font-semibold uppercase tracking-wider text-sm transition-all duration-300 ${
-                isStoreOpen 
-                  ? 'bg-green-500/10 text-green-400 border border-green-500/30 shadow-[0_0_20px_rgba(34,197,94,0.1)] hover:bg-green-500/20' 
-                  : 'bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/20'
-              }`}
-            >
-              {isStoreOpen ? <Power className="w-4 h-4" /> : <PowerOff className="w-4 h-4" />}
-              {isStoreOpen ? 'Store Open' : 'Store Closed'}
-            </button>
+            <h1 className="text-lg font-bold text-white flex items-center gap-2">
+              Spatial Table Operations <span className="text-xs px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 font-mono font-semibold">LIVE CANONICAL</span>
+            </h1>
+            <p className="text-xs text-zinc-400">Layout: <span className="text-zinc-200 font-semibold">{layoutVersion?.name || 'Main Dining Room'}</span></p>
           </div>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 shrink-0">
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
-            <h3 className="text-gray-400 font-medium mb-1">Occupancy Rate</h3>
-            <p className="text-3xl font-heading font-semibold text-white">
-              {Math.round((occupiedCount / totalCount) * 100)}%
-            </p>
+        {/* Live Legend Badges */}
+        <div className="hidden md:flex items-center gap-3 bg-zinc-950/60 px-4 py-1.5 rounded-xl border border-zinc-800 text-xs font-semibold">
+          <div className="flex items-center gap-1.5 text-emerald-400">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span>Available ({tables.filter(t => t.status === 'available').length})</span>
           </div>
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
-            <h3 className="text-gray-400 font-medium mb-1">Occupied Tables</h3>
-            <p className="text-3xl font-heading font-semibold text-white">{occupiedCount} / {totalCount}</p>
+          <div className="h-3 w-[1px] bg-zinc-800" />
+          <div className="flex items-center gap-1.5 text-amber-400">
+            <span className="w-2 h-2 rounded-full bg-amber-400" />
+            <span>Reserved ({tables.filter(t => t.status === 'reserved').length})</span>
           </div>
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
-            <h3 className="text-gray-400 font-medium mb-1">Operating Status</h3>
-            <p className={`text-xl font-heading font-semibold uppercase tracking-widest mt-2 ${isStoreOpen ? 'text-green-400' : 'text-red-400'}`}>
-              {isStoreOpen ? 'Accepting Orders' : 'Offline'}
-            </p>
+          <div className="h-3 w-[1px] bg-zinc-800" />
+          <div className="flex items-center gap-1.5 text-rose-400">
+            <span className="w-2 h-2 rounded-full bg-rose-500" />
+            <span>Occupied ({tables.filter(t => t.status === 'occupied').length})</span>
+          </div>
+          <div className="h-3 w-[1px] bg-zinc-800" />
+          <div className="flex items-center gap-1.5 text-sky-400">
+            <span className="w-2 h-2 rounded-full bg-sky-400" />
+            <span>Cleaning ({tables.filter(t => t.status === 'cleaning').length})</span>
           </div>
         </div>
 
-        {/* Workspace: Canvas + Details Panel */}
-        <div className="flex flex-col md:flex-row gap-8 flex-1 min-h-0">
-          
-          {/* Spatial Canvas Area */}
-          <div className="flex-1 bg-white/5 rounded-2xl border border-white/10 p-8 relative min-h-[400px] shadow-inner overflow-hidden flex items-center justify-center">
-            {/* Subtle grid background */}
-            <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
-            
-            {/* Floor Plan */}
-            <div className="relative w-full max-w-lg aspect-square">
-              {tables.map((table) => {
-                const Icon = TABLE_ICONS[table.type];
-                return (
-                  <button
-                    key={table.id}
-                    onClick={() => setSelectedTableId(table.id)}
-                    className={`
-                      absolute p-3 rounded-xl transition-all duration-300 flex flex-col items-center justify-center
-                      ${selectedTableId === table.id 
-                        ? 'bg-[var(--color-brand-accent)] text-white scale-110 shadow-lg shadow-black/20 z-20 border border-[var(--color-brand-accent)]' 
-                        : table.isAvailable
-                          ? 'bg-white/5 border border-white/10 text-gray-400 hover:border-white/30 hover:text-white z-10 shadow-sm backdrop-blur-sm'
-                          : 'bg-red-500/10 text-red-400 border border-red-500/20 z-10 shadow-sm backdrop-blur-sm'
-                      }
-                    `}
-                    style={{
-                      left: `${table.x}%`,
-                      top: `${table.y}%`,
-                      transform: 'translate(-50%, -50%)',
-                      width: '90px',
-                      height: '90px'
-                    }}
-                  >
-                    <Icon strokeWidth={1} className="w-8 h-8 mb-1" />
-                    <span className="text-xs font-semibold uppercase tracking-widest">{table.label}</span>
+        {/* Action Controls */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => fetchLayoutAndStatus()}
+            className="p-2 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition-colors"
+            title="Refresh Layout"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
 
-                    {!table.isAvailable && selectedTableId !== table.id && (
-                      <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-background animate-pulse" />
-                    )}
-                  </button>
-                );
-              })}
+          <Button
+            onClick={handleToggleStoreStatus}
+            variant={storeStatus.isOpen ? 'default' : 'outline'}
+            size="sm"
+            className={`gap-2 font-bold text-xs ${
+              storeStatus.isOpen 
+                ? 'bg-emerald-500 hover:bg-emerald-600 text-zinc-950 shadow-[0_0_15px_rgba(16,185,129,0.3)]' 
+                : 'border-rose-500/60 text-rose-400 hover:bg-rose-500/10'
+            }`}
+          >
+            <span className={`w-2 h-2 rounded-full ${storeStatus.isOpen ? 'bg-zinc-950' : 'bg-rose-500'}`} />
+            <span>Store: {storeStatus.isOpen ? 'OPEN FOR ORDERS' : 'CLOSED'}</span>
+          </Button>
+        </div>
+      </header>
+
+      {/* Workspace Body: Responsive Canvas Viewport + Right Details Sidebar */}
+      <div className="flex flex-1 overflow-hidden relative">
+        
+        {/* Responsive Canvas Container */}
+        <main ref={containerRef} className="flex-1 bg-zinc-950 relative overflow-hidden flex items-center justify-center p-6">
+          <div
+            style={{
+              width: '1200px',
+              height: '800px',
+              transform: `scale(${scale})`,
+              transformOrigin: 'center center',
+            }}
+            className="relative bg-zinc-900/40 border border-zinc-800/60 rounded-3xl shadow-2xl overflow-hidden transition-all duration-300"
+          >
+            {/* Subtle Grid Indicator */}
+            <div className="absolute inset-0 bg-[radial-gradient(circle,#27272a_1px,transparent_1px)] [background-size:24px_24px] opacity-40 pointer-events-none" />
+
+            {/* Render Static Decorative architectural objects */}
+            {layoutObjects.map((obj) => {
+              if (obj.isHidden) return null;
+              const Icon = OBJECT_ICONS[obj.type] || Square;
+              return (
+                <div
+                  key={obj.id}
+                  style={{
+                    left: `${obj.x}px`,
+                    top: `${obj.y}px`,
+                    width: `${obj.width}px`,
+                    height: `${obj.height}px`,
+                    transform: `rotate(${obj.rotation}deg)`,
+                    zIndex: obj.zIndex,
+                  }}
+                  className="absolute pointer-events-none select-none rounded-xl bg-zinc-900/60 border border-zinc-800/80 flex flex-col items-center justify-center p-1.5 text-zinc-600"
+                >
+                  <Icon className="w-5 h-5 mb-0.5 opacity-50" />
+                  <span className="text-[10px] font-bold tracking-tight text-center truncate w-full px-1">{obj.name}</span>
+                </div>
+              );
+            })}
+
+            {/* Render Canonical Tables */}
+            {tables.map((table) => {
+              if (table.isHidden) return null;
+              const isSelected = selectedTableId === table.id;
+              const Icon = SHAPE_ICONS[table.shape] || Circle;
+              const statusStyle = STATUS_COLORS[table.status] || STATUS_COLORS.available;
+
+              return (
+                <button
+                  key={table.id}
+                  onClick={() => setSelectedTableId(table.id)}
+                  style={{
+                    left: `${table.x}px`,
+                    top: `${table.y}px`,
+                    width: `${table.width}px`,
+                    height: `${table.height}px`,
+                    transform: `rotate(${table.rotation}deg)`,
+                    zIndex: isSelected ? 50 : table.zIndex + 10,
+                  }}
+                  className={`absolute select-none transition-all duration-200 flex flex-col items-center justify-center p-2 border-2 cursor-pointer ${
+                    table.shape === 'round' ? 'rounded-full' : table.shape === 'oval' ? 'rounded-[2.5rem]' : 'rounded-2xl'
+                  } ${statusStyle.bg} ${statusStyle.border} ${
+                    isSelected ? 'ring-4 ring-amber-500 scale-105 shadow-2xl z-50' : 'hover:scale-[1.03] hover:shadow-lg'
+                  }`}
+                >
+                  {/* Status indicator dot */}
+                  <div className={`absolute top-2 right-2 w-2.5 h-2.5 rounded-full border border-zinc-950 ${
+                    table.status === 'available' ? 'bg-emerald-400' : table.status === 'occupied' ? 'bg-rose-500 animate-pulse' : table.status === 'reserved' ? 'bg-amber-400' : 'bg-sky-400'
+                  }`} />
+
+                  <Icon className={`w-6 h-6 mb-1 ${statusStyle.text}`} />
+                  <span className="text-sm font-extrabold tracking-tight text-white drop-shadow truncate max-w-full px-1">{table.name}</span>
+                  <span className="text-[10px] font-mono font-bold bg-zinc-950/70 text-zinc-300 px-2 py-0.5 rounded-full mt-0.5 border border-zinc-700/40">
+                    {table.capacity} Pax
+                  </span>
+
+                  {/* Order / Reservation Ticket Pill */}
+                  {table.currentOrder && (
+                    <span className="absolute -bottom-2.5 bg-rose-500 text-white font-mono text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg border border-rose-400 animate-bounce">
+                      #{table.currentOrder.orderNumber}
+                    </span>
+                  )}
+                  {!table.currentOrder && table.currentReservation && (
+                    <span className="absolute -bottom-2.5 bg-amber-500 text-zinc-950 font-mono text-[9px] font-bold px-2 py-0.5 rounded-full shadow-md border border-amber-400">
+                      Res • {table.currentReservation.customerName.split(' ')[0]}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </main>
+
+        {/* Right Sidebar: Table Operations & Live Ticket Details */}
+        <aside className="w-96 bg-zinc-900/95 border-l border-zinc-800/90 flex flex-col z-10 shrink-0 shadow-2xl backdrop-blur-xl">
+          {!selectedTable ? (
+            <div className="flex-1 flex flex-col items-center justify-center text-center p-8 text-zinc-500 gap-3">
+              <div className="w-16 h-16 rounded-2xl bg-zinc-800/50 border border-zinc-700/50 flex items-center justify-center text-zinc-600">
+                <Utensils className="w-8 h-8" />
+              </div>
+              <h3 className="text-sm font-bold text-zinc-300">Select a Table</h3>
+              <p className="text-xs text-zinc-500 max-w-xs">Click any canonical table on the spatial floor layout to manage reservations, orders, and cleaning lifecycle states.</p>
             </div>
-          </div>
-
-          {/* Details Panel */}
-          <div className="w-full md:w-96 bg-[var(--color-brand-dark)] rounded-2xl border border-white/10 flex flex-col shadow-xl overflow-hidden shrink-0">
-            {selectedTable ? (
-              <div className="flex flex-col h-full">
-                
-                {/* Panel Header */}
-                <div className="p-6 border-b border-white/10 bg-white/5">
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <h3 className="font-heading font-bold text-3xl text-white">{selectedTable.label}</h3>
-                      <p className="text-gray-400 text-sm">{selectedTable.capacity} Pax Capacity</p>
-                    </div>
-                    {selectedTable.isAvailable ? (
-                      <span className="px-3 py-1 bg-green-500/10 text-green-400 text-[10px] uppercase font-bold tracking-widest rounded-full border border-green-500/20">
-                        Available
-                      </span>
-                    ) : (
-                      <span className="px-3 py-1 bg-red-500/10 text-red-400 text-[10px] uppercase font-bold tracking-widest rounded-full border border-red-500/20">
-                        Occupied
-                      </span>
-                    )}
+          ) : (
+            <div className="flex-1 flex flex-col overflow-y-auto p-6 gap-6 custom-scrollbar">
+              
+              {/* Selected Table Header */}
+              <div className="flex items-center justify-between pb-4 border-b border-zinc-800">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                    {React.createElement(SHAPE_ICONS[selectedTable.shape] || Circle, { className: "w-6 h-6" })}
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-extrabold text-white">{selectedTable.name}</h2>
+                    <span className="text-xs text-zinc-400 font-mono">
+                      {selectedTable.capacity} Pax • {selectedTable.shape.replace('_', ' ')}
+                    </span>
                   </div>
                 </div>
 
-                {/* Panel Body */}
-                <div className="p-6 flex-1 overflow-y-auto">
-                  {!selectedTable.isAvailable && selectedTable.order ? (
-                    <div className="space-y-6">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-400 flex items-center gap-2">
-                          <ShoppingBag className="w-4 h-4" /> Order #{selectedTable.order.ticketNumber}
-                        </span>
-                        <span className="text-gray-400 flex items-center gap-2">
-                          <Clock className="w-4 h-4" /> {selectedTable.order.time}
-                        </span>
-                      </div>
-                      
-                      <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-                        <ul className="space-y-3 mb-4">
-                          {selectedTable.order.items.map((item, idx) => (
-                            <li key={idx} className="text-white text-sm flex items-start gap-3 pb-3 border-b border-white/5 last:border-0 last:pb-0">
-                              <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-brand-accent)] mt-1.5 shrink-0" />
-                              <span>{item}</span>
-                            </li>
-                          ))}
-                        </ul>
-                        <div className="flex justify-between items-center pt-3 border-t border-white/10">
-                          <span className="text-gray-400 text-sm">Total</span>
-                          <span className="text-white font-semibold">Rp {selectedTable.order.total.toLocaleString('id-ID')}</span>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="h-full flex flex-col items-center justify-center text-center py-12">
-                      <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-4 border border-white/10">
-                        <CheckCircle2 className="text-green-500/50 w-8 h-8" />
-                      </div>
-                      <h4 className="text-white font-medium mb-2">Table is Empty</h4>
-                      <p className="text-gray-400 text-sm max-w-[200px]">This table is currently available for walk-in customers.</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Panel Footer (Actions) */}
-                <div className="p-6 border-t border-white/10 bg-white/5 mt-auto">
-                  {selectedTable.isAvailable ? (
-                    <Button 
-                      variant="luxury" 
-                      className="w-full bg-[var(--color-brand-accent)] text-white hover:bg-[var(--color-brand-accent-hover)]"
-                      onClick={() => toggleTableStatus(selectedTable.id)}
-                    >
-                      Mark as Occupied
-                    </Button>
-                  ) : (
-                    <Button 
-                      variant="outline" 
-                      className="w-full bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20"
-                      onClick={() => toggleTableStatus(selectedTable.id)}
-                    >
-                      Clear Table & Complete Order
-                    </Button>
-                  )}
-                </div>
-
+                <span className={`px-2.5 py-1 rounded-full text-xs font-bold border font-mono uppercase ${STATUS_COLORS[selectedTable.status].badgeBg}`}>
+                  {STATUS_COLORS[selectedTable.status].label}
+                </span>
               </div>
-            ) : (
-              <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
-                <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-4 border border-white/10">
-                  <span className="text-gray-500 text-2xl">?</span>
-                </div>
-                <h4 className="text-white font-medium mb-2">No Table Selected</h4>
-                <p className="text-gray-400 text-sm">Select a table from the floor plan to view order details or update its status.</p>
-              </div>
-            )}
-          </div>
 
-        </div>
+              {/* Active Order Section */}
+              {selectedTable.currentOrder ? (
+                <div className="bg-gradient-to-br from-rose-950/50 to-zinc-900 p-5 rounded-2xl border border-rose-500/40 space-y-4 shadow-lg">
+                  <div className="flex items-center justify-between border-b border-rose-500/20 pb-3">
+                    <div className="flex items-center gap-2">
+                      <ShoppingBag className="w-5 h-5 text-rose-400" />
+                      <span className="text-sm font-bold text-white">Active Order Ticket</span>
+                    </div>
+                    <span className="text-sm font-mono font-extrabold bg-rose-500 text-white px-2.5 py-0.5 rounded-lg shadow">
+                      #{selectedTable.currentOrder.orderNumber}
+                    </span>
+                  </div>
+
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between text-zinc-300">
+                      <span>Order Status:</span>
+                      <span className="font-semibold text-rose-300 capitalize">{selectedTable.currentOrder.status.replace('_', ' ')}</span>
+                    </div>
+                    <div className="flex justify-between text-zinc-300">
+                      <span>Total Amount:</span>
+                      <span className="font-mono font-bold text-white">Rp {selectedTable.currentOrder.totalAmount.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-zinc-400">
+                      <span>Ordered Time:</span>
+                      <span>{new Date(selectedTable.currentOrder.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                  </div>
+
+                  {/* Clear Table & Complete Order Button */}
+                  <Button
+                    onClick={() => handleUpdateStatus('cleaning', true)}
+                    disabled={updating}
+                    className="w-full bg-emerald-500 hover:bg-emerald-600 text-zinc-950 font-extrabold py-3 shadow-[0_0_20px_rgba(16,185,129,0.3)] gap-2 transition-all"
+                  >
+                    <Check className="w-4 h-4" />
+                    <span>Complete Order & Set Cleaning</span>
+                  </Button>
+                </div>
+              ) : selectedTable.currentReservation ? (
+                <div className="bg-gradient-to-br from-amber-950/40 to-zinc-900 p-5 rounded-2xl border border-amber-500/40 space-y-4">
+                  <div className="flex items-center justify-between border-b border-amber-500/20 pb-3">
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-5 h-5 text-amber-400" />
+                      <span className="text-sm font-bold text-white">Upcoming Reservation</span>
+                    </div>
+                    <span className="text-xs font-mono font-bold text-amber-400">
+                      {new Date(selectedTable.currentReservation.reservationTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+
+                  <div className="space-y-1.5 text-xs text-zinc-300">
+                    <p className="font-bold text-white text-sm">{selectedTable.currentReservation.customerName}</p>
+                    <p className="text-zinc-400">{selectedTable.currentReservation.guestCount} Guests • Confirmed</p>
+                    {selectedTable.currentReservation.customerPhone && (
+                      <p className="font-mono text-amber-400">{selectedTable.currentReservation.customerPhone}</p>
+                    )}
+                  </div>
+
+                  <Button
+                    onClick={() => handleUpdateStatus('occupied')}
+                    disabled={updating}
+                    className="w-full bg-amber-500 hover:bg-amber-600 text-zinc-950 font-bold gap-2"
+                  >
+                    <Users className="w-4 h-4" />
+                    <span>Seat Guest (Mark Occupied)</span>
+                  </Button>
+                </div>
+              ) : (
+                <div className="bg-zinc-950/60 p-5 rounded-2xl border border-zinc-800/80 text-center space-y-2">
+                  <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto" />
+                  <h4 className="text-sm font-bold text-white">Table is Available</h4>
+                  <p className="text-xs text-zinc-400">No active orders or upcoming reservations attached to this table.</p>
+                </div>
+              )}
+
+              {/* Staff Lifecycle Quick Actions */}
+              <div className="space-y-3 mt-auto pt-6 border-t border-zinc-800">
+                <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Staff Status Overrides</h4>
+                
+                <div className="grid grid-cols-2 gap-2.5">
+                  <Button
+                    onClick={() => handleUpdateStatus('occupied')}
+                    disabled={updating || selectedTable.status === 'occupied'}
+                    variant="outline"
+                    className="border-rose-500/40 hover:bg-rose-500/20 text-rose-300 text-xs font-bold justify-start gap-2 h-10"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-rose-500" />
+                    <span>Mark Occupied</span>
+                  </Button>
+
+                  <Button
+                    onClick={() => handleUpdateStatus('cleaning')}
+                    disabled={updating || selectedTable.status === 'cleaning'}
+                    variant="outline"
+                    className="border-sky-500/40 hover:bg-sky-500/20 text-sky-300 text-xs font-bold justify-start gap-2 h-10"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-sky-400" />
+                    <span>Mark Cleaning</span>
+                  </Button>
+
+                  <Button
+                    onClick={() => handleUpdateStatus('available', true)}
+                    disabled={updating || selectedTable.status === 'available'}
+                    variant="outline"
+                    className="border-emerald-500/40 hover:bg-emerald-500/20 text-emerald-300 text-xs font-bold justify-start gap-2 h-10 col-span-1"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                    <span>Set Available</span>
+                  </Button>
+
+                  <Button
+                    onClick={() => handleUpdateStatus(selectedTable.status === 'out_of_service' ? 'available' : 'out_of_service')}
+                    disabled={updating}
+                    variant="outline"
+                    className="border-zinc-700 hover:bg-zinc-800 text-zinc-400 text-xs font-bold justify-start gap-2 h-10 col-span-1"
+                  >
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                    <span>{selectedTable.status === 'out_of_service' ? 'Enable Table' : 'Out of Service'}</span>
+                  </Button>
+                </div>
+              </div>
+
+            </div>
+          )}
+        </aside>
+
       </div>
     </div>
   );

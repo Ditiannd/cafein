@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Plus, Minus, Trash2, X, CreditCard, Banknote, QrCode, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useApiQuery } from '@/lib/hooks';
-import { api, CatalogItem } from '@/lib/api';
+import { api, CatalogItem, TableItem } from '@/lib/api';
 
 interface CartItem {
   id: string;
@@ -44,6 +44,7 @@ interface ReceiptData {
 
 export default function POSPage() {
   const { data: catalog = [] } = useApiQuery('pos-catalog', () => api.catalog.list());
+  const { data: canonicalTables = [] } = useApiQuery<TableItem[]>('canonical-tables', () => api.tables.list());
 
   // Derive sections and categories from the catalog
   const categoriesFromCatalog = Array.from(new Set(catalog.map(c => c.category).filter(Boolean)));
@@ -179,13 +180,16 @@ export default function POSPage() {
         }
       }
 
+      const selectedTableObj = canonicalTables.find((t: TableItem) => t.id === activeTab.tableId || t.name === activeTab.tableId);
+
       const order = await api.orders.create({
         source: 'pos',
         items: Array.from(itemMap.values()),
         paymentMethod: paymentMethod,
         customerName: 'Walk-in',
         orderType: activeTab.orderType === 'Dine In' ? 'dine_in' : 'takeaway',
-        tableNumber: activeTab.tableId || undefined,
+        tableNumber: selectedTableObj ? selectedTableObj.name : activeTab.tableId || undefined,
+        tableId: selectedTableObj ? selectedTableObj.id : activeTab.tableId || undefined,
         amountPaid: paymentMethod === 'cash' && amountPaidInput ? parseInt(amountPaidInput) : undefined,
       });
 
@@ -195,7 +199,7 @@ export default function POSPage() {
         id: order.id,
         orderNumber: order.orderNumber,
         orderType: activeTab.orderType,
-        tableId: activeTab.tableId,
+        tableId: selectedTableObj ? selectedTableObj.name : activeTab.tableId,
         cart: activeTab.cart,
         subtotal: order.subtotal,
         discountTotal: order.discountTotal,
@@ -410,11 +414,16 @@ export default function POSPage() {
                 className="flex-1 bg-white/5 border border-white/10 rounded-lg p-2 text-sm text-white focus:border-[var(--color-brand-accent)] focus:outline-none appearance-none"
               >
                 <option value="" disabled className="bg-zinc-900 text-white">Select a table</option>
-                <option value="T1" className="bg-zinc-900 text-white">Table 1 (T1)</option>
-                <option value="T2" className="bg-zinc-900 text-white">Table 2 (T2)</option>
-                <option value="T3" className="bg-zinc-900 text-white">Table 3 (T3)</option>
-                <option value="C1" className="bg-zinc-900 text-white">Couch 1 (C1)</option>
-                <option value="B1" className="bg-zinc-900 text-white">Bar 1 (B1)</option>
+                {canonicalTables.map((t: TableItem) => (
+                  <option 
+                    key={t.id} 
+                    value={t.id} 
+                    disabled={t.status === 'out_of_service' || t.status === 'cleaning'} 
+                    className="bg-zinc-900 text-white"
+                  >
+                    {t.name} ({t.capacity} Pax) - {t.status.replace('_', ' ').toUpperCase()}
+                  </option>
+                ))}
               </select>
             </div>
           )}

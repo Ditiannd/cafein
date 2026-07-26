@@ -70,6 +70,7 @@ export interface Order {
   customerName: string | null;
   orderType: 'dine_in' | 'takeaway';
   tableNumber: string | null;
+  tableId?: string | null;
   subtotal: number;
   discountTotal: number;
   tax: number;
@@ -95,6 +96,94 @@ export interface OrderItemDetail {
   milkType: string | null;
   itemName: string | null;
   itemImage: string | null;
+}
+
+export type TableShape = 'square' | 'rectangle' | 'round' | 'oval' | 'bar_seat' | 'sofa' | 'private_room';
+export type TableStatus = 'available' | 'reserved' | 'occupied' | 'cleaning' | 'out_of_service';
+export type StaticObjectType = 'wall' | 'counter' | 'cashier' | 'kitchen' | 'plant' | 'window' | 'door' | 'decoration' | 'waiting_area' | 'restroom' | 'divider' | 'custom';
+export type ReservationStatus = 'confirmed' | 'seated' | 'completed' | 'cancelled' | 'expired';
+
+export interface LayoutVersion {
+  id: string;
+  name: string;
+  isActive: boolean;
+  canvasSettings: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TableItem {
+  id: string;
+  layoutVersionId: string;
+  name: string;
+  capacity: number;
+  shape: TableShape;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+  scale: number;
+  zIndex: number;
+  status: TableStatus;
+  qrCode: string | null;
+  notes: string | null;
+  isLocked: boolean;
+  isHidden: boolean;
+  currentOrder?: {
+    id: string;
+    orderNumber: string;
+    status: string;
+    totalAmount: number;
+    createdAt: string;
+    itemsCount?: number;
+  } | null;
+  currentReservation?: {
+    id: string;
+    customerName: string;
+    customerPhone: string | null;
+    reservationTime: string;
+    guestCount: number;
+    status: string;
+  } | null;
+}
+
+export interface LayoutObjectItem {
+  id: string;
+  layoutVersionId: string;
+  name: string;
+  type: StaticObjectType;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+  scale: number;
+  zIndex: number;
+  isLocked: boolean;
+  isHidden: boolean;
+}
+
+export interface FloorLayoutData {
+  layoutVersion: LayoutVersion;
+  tables: TableItem[];
+  layoutObjects: LayoutObjectItem[];
+}
+
+export interface ReservationItem {
+  id: string;
+  tableId: string;
+  tableName?: string;
+  tableCapacity?: number;
+  customerName: string;
+  customerPhone: string | null;
+  customerEmail: string | null;
+  reservationTime: string;
+  durationMinutes: number;
+  guestCount: number;
+  status: ReservationStatus;
+  notes: string | null;
+  createdAt: string;
 }
 
 // --- API Client ---
@@ -164,6 +253,7 @@ export const api = {
       customerName?: string;
       orderType?: string;
       tableNumber?: string;
+      tableId?: string | null;
       amountPaid?: number;
       paymentProofUrl?: string;
     }) => apiFetch<Order>('/api/orders', { method: 'POST', body: JSON.stringify(data) }),
@@ -216,5 +306,50 @@ export const api = {
     getStatus: () => apiFetch<StoreStatus>('/api/store/status'),
     setStatus: (data: { isOpen?: boolean; announcementBanner?: string }) =>
       apiFetch('/api/store/status', { method: 'PATCH', body: JSON.stringify(data) }),
+  },
+
+  // --- Floor Planner & Tables ---
+  floor: {
+    getLayout: () => apiFetch<FloorLayoutData>('/api/floor/layout'),
+    updateLayout: (data: { tables?: Partial<TableItem>[]; layoutObjects?: Partial<LayoutObjectItem>[]; canvasSettings?: any }) =>
+      apiFetch('/api/floor/layout', { method: 'PUT', body: JSON.stringify(data) }),
+  },
+
+  tables: {
+    list: () => apiFetch<TableItem[]>('/api/tables'),
+    get: (id: string) => apiFetch<TableItem>(`/api/tables/${id}`),
+    create: (data: Partial<TableItem>) =>
+      apiFetch<TableItem>('/api/tables', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: Partial<TableItem>) =>
+      apiFetch<TableItem>(`/api/tables/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    delete: (id: string) =>
+      apiFetch(`/api/tables/${id}`, { method: 'DELETE' }),
+    updateStatus: (id: string, status: TableStatus, completeActiveOrders?: boolean) =>
+      apiFetch<TableItem>(`/api/tables/${id}/status`, { method: 'POST', body: JSON.stringify({ status, completeActiveOrders }) }),
+    regenerateQr: (id: string) =>
+      apiFetch<TableItem>(`/api/tables/${id}/qr`, { method: 'POST' }),
+  },
+
+  layoutVersion: {
+    list: () => apiFetch<LayoutVersion[]>('/api/layout/version'),
+    create: (data: { name: string; action: 'create' | 'duplicate'; sourceVersionId?: string }) =>
+      apiFetch<LayoutVersion>('/api/layout/version', { method: 'POST', body: JSON.stringify(data) }),
+    switch: (versionId: string) =>
+      apiFetch<LayoutVersion>('/api/layout/version', { method: 'POST', body: JSON.stringify({ action: 'switch', versionId }) }),
+    rename: (versionId: string, name: string) =>
+      apiFetch<LayoutVersion>('/api/layout/version', { method: 'POST', body: JSON.stringify({ action: 'rename', versionId, name }) }),
+    restore: (versionId: string, resetStatuses?: boolean) =>
+      apiFetch<LayoutVersion>('/api/layout/restore', { method: 'POST', body: JSON.stringify({ versionId, resetStatuses }) }),
+  },
+
+  reservations: {
+    list: (params?: { date?: string; tableId?: string }) => {
+      const query = new URLSearchParams(params as Record<string, string> || {}).toString();
+      return apiFetch<ReservationItem[]>(`/api/reservations${query ? `?${query}` : ''}`);
+    },
+    create: (data: Partial<ReservationItem>) =>
+      apiFetch<ReservationItem>('/api/reservations', { method: 'POST', body: JSON.stringify(data) }),
+    updateStatus: (id: string, status: ReservationStatus) =>
+      apiFetch<ReservationItem>(`/api/reservations/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   },
 };

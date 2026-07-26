@@ -42,10 +42,14 @@ Primary platform goals:
   - **Closed Mode (Memory Mode):** The booking bar is hidden. The page transforms into an exhibition of moody cafe photo galleries, customer reviews, past events, and upcoming promos.
   - **Minimalist Iconography Engine:** The entire UI exclusively uses elegant, thin-line vector icons (e.g., Lucide) to maintain a melancholic, modern, and uncluttered aesthetic. 
 
-- **Sandbox Floor Planner (Admin)**
-  - Interactive grid canvas featuring drag-and-drop table placement, magnetic snap-to-grid effects, collision detection, and 90-degree rotation.
-  - **Minimalist Table Icons:** Assorting tables using clean, line-art SVG icons (representing *Window Seat, Corner Booth, Communal, Long Couch, 2-Seater*).
-  - Automatic QR Code generator and downloader for each table.
+- **Canonical Sandbox Floor Planner v2 (Central Table Management)**
+  - **Single Source of Truth:** Operates as the central table management engine for the entire ecosystem (Admin, Barista, and Customer flows) rather than a visual layout editor. No module maintains an independent copy of table data.
+  - **Infinite & Flexible Canvas:** High-performance viewport with continuous float coordinates (1200x800 base resolution), zoom/pan controls, optional snap-to-grid editing aid, magnetic snapping, and collision detection.
+  - **Comprehensive Entity Support:** 7 table geometry shapes (*Square, Rectangle, Round, Oval, Bar Seat, Sofa, Private Room*) and 12 decorative architectural static objects (*Wall, Counter, Cashier, Kitchen, Plant, Window, Door, Decoration, Waiting Area, Restroom, Divider, Custom*).
+  - **Advanced Editing Tools:** Move, rotate (90°/45°/free), resize handles, duplicate, delete, undo/redo stack (Ctrl+Z/Shift+Z), lock/unlock position, hide/show, and keyboard nudging (Arrow keys).
+  - **Live Property Inspector:** Sidebar providing real-time edits to names, pax capacity, coordinates, dimensions, operational status, notes, and live active ticket monitoring.
+  - **Layout Versioning & Snapshots:** Ability to create, duplicate, switch, and restore named floor plan snapshots (e.g., *Main Dining Room, Weekend Patio Setup, Evening Fine Dining*).
+  - **Integrated QR Code Suite:** Automatic QR generation per table, walk-in testing URLs, bulk PNG downloads, and printable QR cards.
 
 - **Menu & Guest Checkout Engine (Customer)**
   - Menu catalog with *Dynamic Badges* (Best Seller, Promo, Limited).

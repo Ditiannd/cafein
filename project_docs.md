@@ -46,6 +46,16 @@ Cafein Today is a modern, single-tenant cafe web application designed with a lux
 - **Review Moderation**: View all customer reviews submitted from the online booking flow, toggle visibility, and delete inappropriate content.
 - **Event Management**: Create and schedule community events (e.g., Latte Art Masterclass) that appear on the homepage.
 - **Transaction History**: Comprehensive view of all past orders across the platform (POS and Online).
+- **Canonical Floor Planner v2 (`/admin/floor-plan`)**: The central single-source-of-truth table management system. Features an infinite/flexible canvas, snap-to-grid editing, 7 table geometry shapes, 12 decorative architectural static objects, live property inspection, versioning (switch/duplicate/restore), and QR code generation/printing.
+
+### 3.5 Barista Spatial Table Operations (`/barista/tables`) & POS Integration
+- **Spatial Table Operations**: Real-time rendering of the canonical layout with live polling (4s). Baristas can view live order tickets attached to tables, seat reservation guests, and trigger lifecycle overrides (`Available` -> `Reserved` -> `Occupied` -> `Cleaning` -> `Out of Service`).
+- **POS Dynamic Table Binding**: The POS table selector dynamically queries canonical tables from the database and automatically marks selected tables as occupied upon order creation.
+
+### 3.6 Customer Interactive Booking (`/reservation`) & Menu Ordering
+- **Interactive Floor Plan**: Customers select available tables directly from a responsive spatial layout on the homepage slide drawer or dedicated `/reservation` route.
+- **90-Minute Seating & Validation**: Supports standard 90-minute reservation durations with business hour checks (08:00 - 22:00) and double-booking prevention.
+- **QR Code Menu Ordering**: Scanning table QR cards automatically binds the customer's online order to the canonical table ID.
 
 ## 4. UI/UX Principles
 - **Luxury Dark Theme**: `#000000` to deep charcoal backgrounds.
@@ -55,4 +65,4 @@ Cafein Today is a modern, single-tenant cafe web application designed with a lux
 ## 5. Future Roadmap
 - Implementation of real image uploads (AWS S3, Cloudinary) replacing current URL-based inputs.
 - Integration with real payment gateways (Midtrans, Stripe) for automated payment verification.
-- Advanced analytics and reporting in the Admin Dashboard.
+- Advanced analytics and heatmaps for table occupancy in the Admin Dashboard.

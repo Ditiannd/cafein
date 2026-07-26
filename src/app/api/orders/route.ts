@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { orders, orderItems, catalogItems, promotions } from '@/lib/db/schema';
+import { orders, orderItems, catalogItems, promotions, tables } from '@/lib/db/schema';
 import { getSession } from '@/lib/auth';
 import { eq, desc, and, gte, lt, sql } from 'drizzle-orm';
 
@@ -22,6 +22,7 @@ export async function POST(request: NextRequest) {
       customerName,
       orderType,
       tableNumber,
+      tableId,
       amountPaid,
     } = body;
 
@@ -89,6 +90,15 @@ export async function POST(request: NextRequest) {
     const totalAmount = afterDiscount + tax;
     const changeGiven = paymentMethod === 'cash' && amountPaid ? Math.max(0, amountPaid - totalAmount) : null;
 
+    // Resolve tableId from tableNumber if tableId is not explicitly provided
+    let resolvedTableId = tableId || null;
+    if (!resolvedTableId && tableNumber) {
+      const [matchedTable] = await db.select().from(tables).where(eq(tables.name, tableNumber)).limit(1);
+      if (matchedTable) {
+        resolvedTableId = matchedTable.id;
+      }
+    }
+
     // Create order
     const orderNumber = generateOrderNumber();
     const [order] = await db.insert(orders).values({
@@ -98,6 +108,7 @@ export async function POST(request: NextRequest) {
       customerName: customerName || null,
       orderType: orderType || 'dine_in',
       tableNumber: tableNumber || null,
+      tableId: resolvedTableId,
       subtotal,
       discountTotal,
       tax,
@@ -108,6 +119,11 @@ export async function POST(request: NextRequest) {
       paymentProofUrl: paymentProofUrl || null,
       createdById: session?.userId || null,
     }).returning();
+
+    // Automatically synchronize table status to occupied for dine-in orders assigned to a table
+    if (resolvedTableId && (orderType === 'dine_in' || !orderType || orderType === 'Dine In')) {
+      await db.update(tables).set({ status: 'occupied', updatedAt: new Date() }).where(eq(tables.id, resolvedTableId));
+    }
 
     // Create order items
     if (processedItems.length > 0) {
