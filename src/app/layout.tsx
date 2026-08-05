@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import { Inter, Outfit } from 'next/font/google';
 import './globals.css';
+import { CustomCursor } from '@/components/ui/CustomCursor';
+import { PageLoader } from '@/components/ui/PageLoader';
 
 const inter = Inter({
   variable: '--font-inter',
@@ -13,7 +15,7 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: 'Cafein Today | Luxury Hybrid Coffee Ecosystem',
+  title: 'Cafein Today | Artisanal Coffee Sanctuary',
   description: 'Experience the finest coffee in a cinematic, dual-state environment.',
 };
 
@@ -25,6 +27,8 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${outfit.variable} antialiased`}>
       <body>
+        <PageLoader />
+        <CustomCursor />
         {children}
       </body>
     </html>

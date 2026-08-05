@@ -1,241 +1,234 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Calendar, ChevronRight, X, Printer } from 'lucide-react';
+import { Search, Calendar, ChevronRight, X, Printer, Coffee, History, ShieldCheck, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
-
-// Mock historical orders
-const mockOrderHistory = [
-  {
-    id: 'ORD-5829-1738',
-    date: '2023-11-15 14:30',
-    orderType: 'Dine In',
-    tableId: 'T2',
-    subtotal: 90000,
-    tax: 9900,
-    discountTotal: 0,
-    total: 99900,
-    paymentMethod: 'qris',
-    status: 'Completed',
-    cart: [
-      { id: '1', quantity: 2, menuItem: { name: 'Oat Milk Latte', price: 45000 }, modifiers: { iceLevel: 'Normal', sugarLevel: 'Less', milkType: 'Oat Milk' } }
-    ]
-  },
-  {
-    id: 'ORD-5829-1739',
-    date: '2023-11-15 15:15',
-    orderType: 'Takeaway',
-    tableId: null,
-    subtotal: 63000,
-    tax: 6930,
-    discountTotal: 7000,
-    total: 62930,
-    paymentMethod: 'cash',
-    amountPaid: 100000,
-    change: 37070,
-    status: 'Completed',
-    cart: [
-      { id: '2', quantity: 1, menuItem: { name: 'Truffle Croissant', price: 38000 } },
-      { id: '3', quantity: 1, menuItem: { name: 'Almond Choco Brownie', price: 25000, discountPrice: 18000 } }
-    ]
-  },
-  {
-    id: 'ORD-5828-1120',
-    date: '2023-11-14 09:10',
-    orderType: 'Dine In',
-    tableId: 'C1',
-    subtotal: 35000,
-    tax: 3850,
-    discountTotal: 0,
-    total: 38850,
-    paymentMethod: 'card',
-    status: 'Completed',
-    cart: [
-      { id: '4', quantity: 1, menuItem: { name: 'Classic Cappuccino', price: 35000 } }
-    ]
-  }
-];
+import { api, Order, OrderDetail } from '@/lib/api';
+import { useApiQuery } from '@/lib/hooks';
 
 export default function OrderHistoryPage() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedOrder, setSelectedOrder] = useState<any>(null);
+  const [selectedOrder, setSelectedOrder] = useState<OrderDetail | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
 
-  const filteredOrders = mockOrderHistory.filter(order => 
-    order.id.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    order.date.includes(searchTerm)
+  const { data: orders, isLoading } = useApiQuery<Order[]>('order-history', () => api.orders.list());
+
+  // Filter only completed/cancelled orders for history
+  const completedOrders = (orders || []).filter(o => o.status === 'completed' || o.status === 'cancelled');
+
+  const filteredOrders = completedOrders.filter(order => 
+    order.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    order.createdAt.includes(searchTerm) ||
+    (order.customerName && order.customerName.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
+  const handleViewOrder = async (orderId: string) => {
+    setLoadingDetail(true);
+    try {
+      const detail = await api.orders.get(orderId);
+      setSelectedOrder(detail);
+    } catch (err) {
+      console.error('Failed to load order detail:', err);
+    } finally {
+      setLoadingDetail(false);
+    }
+  };
+
+  const formatDate = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return d.toLocaleString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+  };
+
+  const formatPaymentMethod = (method: string | null) => {
+    if (!method) return 'N/A';
+    return method.replace(/_/g, ' ').toUpperCase();
+  };
+
   return (
-    <div className="p-8 h-full flex flex-col max-w-7xl mx-auto w-full">
-      <div className="flex justify-between items-center mb-8">
+    <div className="p-8 h-full flex flex-col max-w-7xl mx-auto w-full font-sans select-none text-[#FFFFFF] print:p-0 print:m-0 print:block">
+      <div className="flex justify-between items-center mb-8 pb-5 border-b border-[#E5A93C]/20/80 print:hidden">
         <div>
-          <h1 className="text-3xl font-heading font-semibold text-white mb-2">Order History</h1>
-          <p className="text-gray-400">View and search all past transactions and receipts.</p>
+          <div className="flex items-center gap-2">
+            <h1 className="text-3xl font-heading font-extrabold text-white tracking-tight">Transaction Ledger</h1>
+            <span className="text-[10px] font-mono uppercase bg-[#E5A93C]/15 text-[#E5A93C] px-3 py-1 rounded-full border border-[#E5A93C]/30 font-bold">Historical Vault</span>
+          </div>
+          <p className="text-[#C6C0B4] text-xs font-mono mt-1">Audit and search all historical resort transactions, POS settlements, and table slips.</p>
         </div>
       </div>
 
-      <div className="flex justify-between items-center mb-6">
-        <div className="relative w-80">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500" />
+      <div className="flex justify-between items-center mb-6 gap-4 print:hidden">
+        <div className="relative w-96">
+          <Search className="w-4 h-4 absolute left-3.5 top-1/2 transform -translate-y-1/2 text-[#C6C0B4]" />
           <input 
             type="text"
-            placeholder="Search by Order ID or Date..."
+            placeholder="Search by Transaction ID, Date or Customer..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-white/5 border border-white/10 rounded-lg pl-9 pr-4 py-2 text-sm text-white focus:outline-none focus:border-[var(--color-brand-accent)] transition-colors"
+            className="input-luxury w-full bg-[#1E1A17] border border-[#E5A93C]/20 focus:border-[#E5A93C] rounded-xl pl-10 pr-4 py-2.5 text-xs font-mono text-white placeholder:text-zinc-600 shadow-inner"
           />
         </div>
-        <div className="flex gap-2">
-          <button className="flex items-center gap-2 bg-white/5 border border-white/10 px-4 py-2 rounded-lg text-sm text-gray-300 hover:text-white hover:bg-white/10 transition-colors">
-            <Calendar className="w-4 h-4" /> Filter by Date
-          </button>
-        </div>
       </div>
 
-      <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden flex-1 flex flex-col">
-        <div className="overflow-x-auto flex-1">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-white/10 text-gray-500 text-sm bg-white/[0.02]">
-                <th className="py-4 px-6 font-medium uppercase tracking-wider">Order ID</th>
-                <th className="py-4 px-6 font-medium uppercase tracking-wider">Date & Time</th>
-                <th className="py-4 px-6 font-medium uppercase tracking-wider">Type / Table</th>
-                <th className="py-4 px-6 font-medium uppercase tracking-wider">Payment</th>
-                <th className="py-4 px-6 font-medium uppercase tracking-wider text-right">Total</th>
-                <th className="py-4 px-6 font-medium text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/5">
-              {filteredOrders.map((order) => (
-                <tr key={order.id} className="hover:bg-white/[0.02] transition-colors group cursor-pointer" onClick={() => setSelectedOrder(order)}>
-                  <td className="py-4 px-6">
-                    <span className="font-mono text-white">#{order.id.split('-')[1]}</span>
-                  </td>
-                  <td className="py-4 px-6 text-gray-400">{order.date}</td>
-                  <td className="py-4 px-6">
-                    <div className="flex items-center gap-2">
-                      <span className="text-gray-300">{order.orderType}</span>
-                      {order.tableId && (
-                        <span className="px-2 py-0.5 rounded text-xs bg-white/10 text-white border border-white/10">T-{order.tableId}</span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="py-4 px-6">
-                    <span className="px-2.5 py-1 rounded-md text-xs font-medium bg-white/10 text-gray-300 uppercase tracking-wider">
-                      {order.paymentMethod}
-                    </span>
-                  </td>
-                  <td className="py-4 px-6 text-right font-medium text-[var(--color-brand-accent)]">
-                    Rp {order.total.toLocaleString('id-ID')}
-                  </td>
-                  <td className="py-4 px-6 text-right">
-                    <button className="text-gray-500 group-hover:text-[var(--color-brand-accent)] transition-colors inline-flex items-center gap-1 text-sm">
-                      View <ChevronRight className="w-4 h-4" />
-                    </button>
-                  </td>
+      <div className="card-luxury bg-[#1E1A17]/60 border border-[#E5A93C]/20/80 rounded-3xl overflow-hidden flex-1 flex flex-col shadow-2xl print:hidden">
+        {isLoading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="w-8 h-8 text-[#E5A93C] animate-spin" />
+          </div>
+        ) : (
+          <div className="overflow-x-auto flex-1 custom-scrollbar">
+            <table className="w-full text-left border-collapse font-mono text-xs">
+              <thead>
+                <tr className="border-b border-[#E5A93C]/20 text-[#C6C0B4] bg-[#141210]/80 uppercase font-bold tracking-wider">
+                  <th className="py-4 px-6">Transaction ID</th>
+                  <th className="py-4 px-6">Timestamp</th>
+                  <th className="py-4 px-6">Service Type / Table</th>
+                  <th className="py-4 px-6">Settlement Method</th>
+                  <th className="py-4 px-6 text-right">Settled Amount</th>
+                  <th className="py-4 px-6 text-right">Audit Copy</th>
                 </tr>
-              ))}
-              {filteredOrders.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="py-12 text-center text-gray-500">
-                    No matching orders found.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-zinc-800/60 font-sans">
+                {filteredOrders.map((order) => (
+                  <tr 
+                    key={order.id} 
+                    className="hover:bg-[#1E1A17]/90 transition-all group cursor-pointer" 
+                    onClick={() => handleViewOrder(order.id)}
+                  >
+                    <td className="py-4 px-6">
+                      <span className="font-mono font-bold text-white group-hover:text-[#E5A93C] transition-colors">{order.orderNumber}</span>
+                    </td>
+                    <td className="py-4 px-6 text-[#C6C0B4] font-mono text-xs">{formatDate(order.createdAt)}</td>
+                    <td className="py-4 px-6">
+                      <div className="flex items-center gap-2 font-mono text-xs">
+                        <span className="text-[#ECE6DD] font-bold">{order.orderType === 'dine_in' ? 'Dine In' : 'Takeaway'}</span>
+                        {order.tableNumber ? (
+                          <span className="px-2 py-0.5 rounded-md text-[10px] bg-[#E5A93C]/15 text-[#E5A93C] border border-[#E5A93C]/30 font-bold">Table {order.tableNumber}</span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-md text-[10px] bg-[#2B231D] text-[#C6C0B4] border border-[#E5A93C]/30">Counter</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="py-4 px-6 font-mono">
+                      <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-[#141210] text-[#E5A93C] border border-[#E5A93C]/20 uppercase tracking-widest">
+                        {formatPaymentMethod(order.paymentMethod)}
+                      </span>
+                    </td>
+                    <td className="py-4 px-6 text-right font-mono font-extrabold text-[#E5A93C] text-sm">
+                      Rp {order.totalAmount.toLocaleString('id-ID')}
+                    </td>
+                    <td className="py-4 px-6 text-right">
+                      <button className="text-[#C6C0B4] group-hover:text-[#E5A93C] transition-colors inline-flex items-center gap-1 font-mono text-xs font-bold">
+                        <span>View Slip</span>
+                        <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {filteredOrders.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="py-20 text-center text-[#C6C0B4] font-mono">
+                      <History className="w-10 h-10 mx-auto text-zinc-700 mb-2 stroke-[1.5]" />
+                      <span>No matching historical transactions found in vault.</span>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
-      {/* Receipt Modal */}
+      {/* Receipt Copy Modal */}
       <AnimatePresence>
         {selectedOrder && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 font-mono print:static print:bg-transparent print:p-0 print:block">
             <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white text-black rounded-lg p-8 max-w-sm w-full shadow-2xl flex flex-col font-mono relative"
+              initial={{ scale: 0.9, opacity: 0, y: 15 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 15 }}
+              className="bg-[#141210] text-[#FFFFFF] rounded-3xl p-8 max-w-sm w-full shadow-2xl flex flex-col relative border border-[#E5A93C]/20 text-xs print:bg-white print:text-black print:border-none print:shadow-none print:w-[80mm] print:max-w-none print:p-0 print:m-0 print:rounded-none"
             >
               <button 
                 onClick={() => setSelectedOrder(null)}
-                className="absolute top-4 right-4 text-gray-400 hover:text-black transition-colors z-10"
+                className="absolute top-4 right-4 p-2 text-[#C6C0B4] hover:text-white bg-[#1E1A17] rounded-xl transition-colors z-10 print:hidden"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
 
-              <div className="text-center border-b-2 border-dashed border-gray-300 pb-4 mb-4">
-                <h2 className="text-xl font-bold uppercase tracking-widest mb-1">Cafein Today</h2>
-                <p className="text-xs text-gray-500">Historical Receipt Copy</p>
-                <p className="text-xs text-gray-500">{selectedOrder.date}</p>
-                <div className="mt-3">
-                  <p className="font-bold text-sm uppercase">Order #{selectedOrder.id.split('-')[1].substring(0,4)}</p>
-                  <p className="text-sm font-semibold">{selectedOrder.orderType} {selectedOrder.tableId ? `- Table ${selectedOrder.tableId}` : ''}</p>
+              <div className="text-center border-b border-dashed border-[#E5A93C]/20 pb-5 mb-5 space-y-1 print:border-black print:pb-3 print:mb-3">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#E5A93C]/20 text-[#E5A93C] border border-[#E5A93C]/30 font-bold text-[10px] mb-2 print:border-black print:bg-transparent print:text-black">
+                  <ShieldCheck className="w-3 h-3 print:hidden" />
+                  <span>Historical Audit Slip</span>
+                </div>
+                <h2 className="text-lg font-heading font-extrabold uppercase tracking-widest text-white print:text-black">Cafein Today</h2>
+                <p className="text-[#C6C0B4] text-[10px] print:text-black">Sanctuary Ledger Copy • Archived</p>
+                <p className="text-[#C6C0B4] text-[10px] print:text-black">{formatDate(selectedOrder.createdAt)}</p>
+                <div className="pt-2 mt-2 border-t border-zinc-900 flex justify-between font-bold text-[#E5A93C] print:text-black print:border-black">
+                  <span>{selectedOrder.orderNumber}</span>
+                  <span>{selectedOrder.orderType === 'dine_in' ? 'Dine In' : 'Takeaway'} {selectedOrder.tableNumber ? `(${selectedOrder.tableNumber})` : ''}</span>
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto mb-4 min-h-[150px]">
-                {selectedOrder.cart.map((item: any) => {
-                  const effectivePrice = item.menuItem.discountPrice || item.menuItem.price;
-                  return (
-                    <div key={item.id} className="mb-3 text-sm">
-                      <div className="flex justify-between font-semibold">
-                        <span>{item.quantity}x {item.menuItem.name}</span>
-                        <span>{(effectivePrice * item.quantity).toLocaleString('id-ID')}</span>
-                      </div>
-                      {item.modifiers && (
-                        <div className="text-xs text-gray-500 ml-5 leading-tight">
-                          {item.modifiers.iceLevel}, {item.modifiers.sugarLevel}, {item.modifiers.milkType}
-                        </div>
-                      )}
+              <div className="flex-1 overflow-y-auto mb-5 min-h-[140px] space-y-3 custom-scrollbar print:overflow-visible print:min-h-0 print:mb-3">
+                {selectedOrder.items.map((item) => (
+                  <div key={item.id} className="space-y-0.5">
+                    <div className="flex justify-between font-bold text-white print:text-black">
+                      <span className="truncate pr-2">{item.quantity}x {item.itemName || 'Item'}</span>
+                      <span className="text-[#E5A93C] shrink-0 print:text-black">Rp {(item.unitPrice * item.quantity).toLocaleString('id-ID')}</span>
                     </div>
-                  )
-                })}
+                    {(item.iceLevel || item.sugarLevel || item.milkType) && (
+                      <div className="text-[10px] text-[#C6C0B4] ml-4 leading-tight print:text-black">
+                        {[item.iceLevel, item.sugarLevel, item.milkType].filter(Boolean).join(', ')}
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
 
-              <div className="border-t-2 border-dashed border-gray-300 pt-4 mb-6 text-sm">
-                <div className="flex justify-between mb-1">
+              <div className="border-t border-dashed border-[#E5A93C]/20 pt-4 mb-6 space-y-1.5 text-[#C6C0B4] print:border-black print:text-black print:pt-3 print:mb-2">
+                <div className="flex justify-between">
                   <span>Subtotal</span>
                   <span>Rp {selectedOrder.subtotal.toLocaleString('id-ID')}</span>
                 </div>
                 {selectedOrder.discountTotal > 0 && (
-                  <div className="flex justify-between mb-1 text-red-500">
-                    <span>Discount</span>
+                  <div className="flex justify-between text-rose-400 font-bold print:text-black">
+                    <span>Discount Allocation</span>
                     <span>-Rp {selectedOrder.discountTotal.toLocaleString('id-ID')}</span>
                   </div>
                 )}
-                <div className="flex justify-between mb-1">
-                  <span>Tax (11%)</span>
+                <div className="flex justify-between">
+                  <span>Resort Tax (11%)</span>
                   <span>Rp {selectedOrder.tax.toLocaleString('id-ID')}</span>
                 </div>
-                <div className="flex justify-between font-bold text-base mt-2">
-                  <span>Total</span>
-                  <span>Rp {selectedOrder.total.toLocaleString('id-ID')}</span>
+                <div className="flex justify-between font-extrabold text-sm pt-2 mt-1 border-t border-zinc-900 text-white print:border-black print:text-black">
+                  <span>Total Settled</span>
+                  <span className="text-[#E5A93C] print:text-black">Rp {selectedOrder.totalAmount.toLocaleString('id-ID')}</span>
                 </div>
-                <div className="flex justify-between mt-4 text-gray-500 text-xs uppercase">
-                  <span>Payment Method</span>
-                  <span>{selectedOrder.paymentMethod}</span>
+                <div className="flex justify-between pt-3 text-[10px] uppercase text-[#C6C0B4] print:text-black">
+                  <span>Settlement Method</span>
+                  <span className="text-[#ECE6DD] font-bold print:text-black">{formatPaymentMethod(selectedOrder.paymentMethod)}</span>
                 </div>
                 {selectedOrder.amountPaid && (
-                  <div className="flex justify-between text-gray-500 text-xs uppercase mt-1">
+                  <div className="flex justify-between text-[10px] uppercase text-[#C6C0B4] print:text-black">
                     <span>Amount Paid</span>
-                    <span>Rp {selectedOrder.amountPaid.toLocaleString('id-ID')}</span>
+                    <span className="text-[#ECE6DD] print:text-black">Rp {selectedOrder.amountPaid.toLocaleString('id-ID')}</span>
                   </div>
                 )}
-                {selectedOrder.change > 0 && (
-                  <div className="flex justify-between text-gray-500 text-xs uppercase mt-1">
-                    <span>Change</span>
-                    <span>Rp {selectedOrder.change.toLocaleString('id-ID')}</span>
+                {selectedOrder.changeGiven && selectedOrder.changeGiven > 0 && (
+                  <div className="flex justify-between text-[10px] uppercase text-emerald-400 font-bold print:text-black">
+                    <span>Change Returned</span>
+                    <span>Rp {selectedOrder.changeGiven.toLocaleString('id-ID')}</span>
                   </div>
                 )}
               </div>
 
-              <Button variant="outline" className="w-full bg-gray-100 text-black border-transparent hover:bg-gray-200">
-                <Printer className="w-4 h-4 mr-2" /> Print Copy
-              </Button>
-              
-              <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-gray-200 via-white to-gray-200 opacity-50" style={{ clipPath: 'polygon(0 0, 5% 100%, 10% 0, 15% 100%, 20% 0, 25% 100%, 30% 0, 35% 100%, 40% 0, 45% 100%, 50% 0, 55% 100%, 60% 0, 65% 100%, 70% 0, 75% 100%, 80% 0, 85% 100%, 90% 0, 95% 100%, 100% 0)' }}></div>
+              <div className="font-sans print:hidden">
+                <Button variant="luxury" className="w-full py-4 text-xs font-bold gap-2" onClick={() => window.print()}>
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Reprint Physical Slip</span>
+                </Button>
+              </div>
             </motion.div>
           </div>
         )}

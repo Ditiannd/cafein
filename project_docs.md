@@ -25,10 +25,19 @@ Cafein Today is a modern, single-tenant cafe web application designed with a lux
 
 ## 3. Core Features
 
-### 3.1 Landing Page
-- **Immersive Hero**: Dynamic, visually striking hero section.
-- **Dynamic Content**: Best Sellers, Upcoming Events, Memory Gallery, and Customer Reviews are fetched securely from the database.
-- **Promotions/Discounts**: A dedicated promotions section highlights active discounts visually, drawing customer attention to current offers. Discount data is joined with catalog items dynamically via the API.
+### 3.1 Landing Page v2 (9-Chapter Resort Storytelling)
+- **Cinematic 9-Chapter Narrative**: Re-engineered into a continuous luxury storytelling experience:
+  - *Chapter I — Hero Experience*: Slow background zoom, radial lighting, particle glow, and scroll title evolution.
+  - *Chapter II — Brand Philosophy (`BrandStorySection`)*: Pinned sticky title with scrolling narrative cards and mask-reveal opacity transforms.
+  - *Chapter III — The Craft & Ritual (`CoffeePhilosophySection`)*: Parallax image cards detailing volcanic micro-lot sourcing and 93°C extraction.
+  - *Chapter IV — Spatial Sanctuary Experience (`ExperienceScrollSection`)*: Showcasing ergonomic acoustic nooks and canonical live floor management.
+  - *Chapter V — Seasonal Privileges (`PromotionsSection`)*: Curated promotional privileges with real-time sync.
+  - *Chapter VI — Resort Collections (`BestSellerSection`)*: Interactive category tab filtering for signature creations.
+  - *Chapter VII — Community & Gatherings (`EventSection`)*: Acoustic evenings and masterclasses.
+  - *Chapter VIII — Memory Vault (`MemoryGallery`)*: Interactive masonry / storytelling grid with hover rotation and lighting response.
+  - *Chapter IX — Patron Testimonials (`ReviewsSection`)*: Verified patron badges, glowing rating stars, and card depth transitions.
+- **Interactive Reserve Centerpiece (`FloatingDock`)**: Replaces the static bottom booking bar with a luxury floating dock that offers morphing orb collapse and quick action links. Clicking *Reserve Table* triggers an Apple Maps-inspired bottom-up slide drawer containing the canonical `InteractiveFloorPlanMock`.
+- **GPU-Accelerated Motion**: Built with 60fps rendering (`will-change-transform`, `translateZ(0)`) to eliminate layout shifts during complex scroll storytelling.
 
 ### 3.2 Online Menu & Booking (`/menu`)
 - Interactive online menu for customers.

@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { name, price, categoryId, image, badge, isBestSeller } = body;
+    const { name, price, categoryId, image, badge, isBestSeller, modifierOptions } = body;
 
     if (!name || !price || !image) {
       return NextResponse.json({ error: 'Name, price, and image are required' }, { status: 400 });
@@ -24,6 +24,7 @@ export async function POST(request: NextRequest) {
       image,
       badge: badge || null,
       isBestSeller: isBestSeller ?? false,
+      modifierOptions: modifierOptions || null,
     }).returning();
 
     return NextResponse.json(result[0], { status: 201 });

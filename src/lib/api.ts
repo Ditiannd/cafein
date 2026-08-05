@@ -20,6 +20,11 @@ export interface CatalogItem {
   promotionId: number | null;
   discountType: 'percentage' | 'fixed' | null;
   discountValue: number | null;
+  modifierOptions?: {
+    iceLevels?: { name: string; upcharge: number }[];
+    sugarLevels?: { name: string; upcharge: number }[];
+    milkTypes?: { name: string; upcharge: number }[];
+  };
 }
 
 export interface Promotion {
@@ -108,6 +113,9 @@ export interface LayoutVersion {
   name: string;
   isActive: boolean;
   canvasSettings: string | null;
+  defaultViewportX: number | null;
+  defaultViewportY: number | null;
+  defaultViewportZoom: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -184,6 +192,54 @@ export interface ReservationItem {
   status: ReservationStatus;
   notes: string | null;
   createdAt: string;
+}
+
+export interface StaffMember {
+  id: string;
+  name: string;
+  email: string;
+  role: 'admin' | 'barista';
+  createdAt: string;
+}
+
+export interface InventoryItem {
+  id: number;
+  name: string;
+  quantity: number;
+  unit: string;
+  minThreshold: number;
+  updatedAt: string;
+}
+
+export interface ExpenseItem {
+  id: number;
+  description: string;
+  amount: number;
+  category: string | null;
+  date: string;
+  recordedById: string | null;
+}
+
+export interface CategoryItem {
+  id: number;
+  name: string;
+  sortOrder: number;
+}
+
+export interface AnalyticsData {
+  financeData: Array<{ name: string; date: string; income: number; outcome: number }>;
+  visitorData: Array<{ time: string; visitors: number }>;
+  topSellingItems: Array<{ name: string; totalSold: number }>;
+  topTables: Array<{ name: string; orderCount: number }>;
+  kpi: {
+    totalRevenue: number;
+    totalExpenses: number;
+    patronCount: number;
+    topItem: string;
+    topItemSold: number;
+    topTable: string;
+    topTableOrders: number;
+  };
 }
 
 // --- API Client ---
@@ -311,7 +367,7 @@ export const api = {
   // --- Floor Planner & Tables ---
   floor: {
     getLayout: () => apiFetch<FloorLayoutData>('/api/floor/layout'),
-    updateLayout: (data: { tables?: Partial<TableItem>[]; layoutObjects?: Partial<LayoutObjectItem>[]; canvasSettings?: any }) =>
+    updateLayout: (data: { tables?: Partial<TableItem>[]; layoutObjects?: Partial<LayoutObjectItem>[]; canvasSettings?: any; defaultViewportX?: number; defaultViewportY?: number; defaultViewportZoom?: number; }) =>
       apiFetch('/api/floor/layout', { method: 'PUT', body: JSON.stringify(data) }),
   },
 
@@ -328,6 +384,8 @@ export const api = {
       apiFetch<TableItem>(`/api/tables/${id}/status`, { method: 'POST', body: JSON.stringify({ status, completeActiveOrders }) }),
     regenerateQr: (id: string) =>
       apiFetch<TableItem>(`/api/tables/${id}/qr`, { method: 'POST' }),
+    resetAll: () =>
+      apiFetch<{ success: boolean; tablesReset: number }>('/api/tables/reset', { method: 'POST' }),
   },
 
   layoutVersion: {
@@ -352,4 +410,59 @@ export const api = {
     updateStatus: (id: string, status: ReservationStatus) =>
       apiFetch<ReservationItem>(`/api/reservations/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   },
+
+  // --- Staff Management ---
+  staff: {
+    list: () => apiFetch<StaffMember[]>('/api/admin/staff'),
+    create: (data: { name: string; email: string; password: string; role: string }) =>
+      apiFetch<StaffMember>('/api/admin/staff', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: { name?: string; email?: string; role?: string; password?: string }) =>
+      apiFetch<StaffMember>(`/api/admin/staff/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    delete: (id: string) =>
+      apiFetch(`/api/admin/staff/${id}`, { method: 'DELETE' }),
+  },
+
+  // --- Inventory ---
+  inventory: {
+    list: () => apiFetch<InventoryItem[]>('/api/admin/inventory'),
+    create: (data: { name: string; quantity: number; unit: string; minThreshold?: number }) =>
+      apiFetch<InventoryItem>('/api/admin/inventory', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: number, data: { name?: string; quantity?: number; unit?: string; minThreshold?: number }) =>
+      apiFetch<InventoryItem>(`/api/admin/inventory/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    delete: (id: number) =>
+      apiFetch(`/api/admin/inventory/${id}`, { method: 'DELETE' }),
+  },
+
+  // --- Expenses ---
+  expenses: {
+    list: (params?: { startDate?: string; endDate?: string }) => {
+      const searchParams = new URLSearchParams();
+      if (params?.startDate) searchParams.set('startDate', params.startDate);
+      if (params?.endDate) searchParams.set('endDate', params.endDate);
+      const qs = searchParams.toString();
+      return apiFetch<ExpenseItem[]>(`/api/admin/expenses${qs ? `?${qs}` : ''}`);
+    },
+    create: (data: { description: string; amount: number; category?: string; date?: string }) =>
+      apiFetch<ExpenseItem>('/api/admin/expenses', { method: 'POST', body: JSON.stringify(data) }),
+    delete: (id: number) =>
+      apiFetch(`/api/admin/expenses/${id}`, { method: 'DELETE' }),
+  },
+
+  // --- Analytics ---
+  analytics: {
+    getOverview: (period?: '7d' | '30d') =>
+      apiFetch<AnalyticsData>(`/api/admin/analytics${period ? `?period=${period}` : ''}`),
+  },
+
+  // --- Categories ---
+  categories: {
+    list: () => apiFetch<CategoryItem[]>('/api/admin/categories'),
+    create: (data: { name: string; sortOrder?: number }) =>
+      apiFetch<CategoryItem>('/api/admin/categories', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: number, data: { name?: string; sortOrder?: number }) =>
+      apiFetch<CategoryItem>(`/api/admin/categories/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    delete: (id: number) =>
+      apiFetch(`/api/admin/categories/${id}`, { method: 'DELETE' }),
+  },
 };
+

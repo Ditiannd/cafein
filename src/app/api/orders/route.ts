@@ -38,6 +38,7 @@ export async function POST(request: NextRequest) {
     const catalogData = await db.select({
       id: catalogItems.id,
       price: catalogItems.price,
+      modifierOptions: catalogItems.modifierOptions,
       promotionDiscountType: promotions.discountType,
       promotionDiscountValue: promotions.discountValue,
     })
@@ -63,10 +64,27 @@ export async function POST(request: NextRequest) {
       const catalogItem = priceMap.get(item.catalogItemId);
       if (!catalogItem) continue;
 
-      const unitPrice = catalogItem.price;
+      let unitPrice = catalogItem.price;
+
+      // Apply modifier upcharges
+      if (catalogItem.modifierOptions) {
+        if (item.iceLevel && catalogItem.modifierOptions.iceLevels) {
+          const mod = catalogItem.modifierOptions.iceLevels.find(i => i.name === item.iceLevel);
+          if (mod) unitPrice += mod.upcharge;
+        }
+        if (item.sugarLevel && catalogItem.modifierOptions.sugarLevels) {
+          const mod = catalogItem.modifierOptions.sugarLevels.find(s => s.name === item.sugarLevel);
+          if (mod) unitPrice += mod.upcharge;
+        }
+        if (item.milkType && catalogItem.modifierOptions.milkTypes) {
+          const mod = catalogItem.modifierOptions.milkTypes.find(m => m.name === item.milkType);
+          if (mod) unitPrice += mod.upcharge;
+        }
+      }
+
       subtotal += unitPrice * item.quantity;
 
-      // Calculate discount
+      // Calculate discount (discount applies to base unitPrice including modifiers)
       if (catalogItem.promotionDiscountType && catalogItem.promotionDiscountValue) {
         if (catalogItem.promotionDiscountType === 'fixed') {
           discountTotal += catalogItem.promotionDiscountValue * item.quantity;

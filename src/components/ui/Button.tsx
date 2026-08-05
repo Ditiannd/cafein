@@ -13,19 +13,19 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant = 'default', size = 'default', asChild = false, ...props }, ref) => {
     const Comp = asChild ? Slot : 'button';
     
-    const baseStyles = "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50";
+    const baseStyles = "inline-flex items-center justify-center whitespace-nowrap rounded-xl text-sm font-semibold ring-offset-zinc-950 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 select-none cursor-pointer";
     
     const variants = {
-      default: "bg-[var(--color-brand-dark)] text-[var(--color-brand-light)] hover:bg-[var(--color-brand-dark)]/90",
-      outline: "border border-[var(--color-brand-dark)] bg-transparent hover:bg-[var(--color-brand-dark)] hover:text-[var(--color-brand-light)]",
-      ghost: "hover:bg-[var(--color-brand-dark)]/10 text-[var(--color-brand-dark)]",
-      luxury: "bg-[var(--color-brand-accent)] text-white hover:bg-[var(--color-brand-accent-hover)] uppercase tracking-widest text-xs font-semibold shadow-lg shadow-[var(--color-brand-accent)]/20 transition-all duration-300 hover:shadow-xl hover:-translate-y-0.5",
+      default: "bg-zinc-100 text-zinc-950 hover:bg-white hover:shadow-lg active:scale-[0.98]",
+      outline: "border border-zinc-700 bg-transparent hover:border-amber-500 hover:text-amber-400 text-zinc-300 active:scale-[0.98]",
+      ghost: "hover:bg-zinc-800/60 text-zinc-300 hover:text-white",
+      luxury: "bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-zinc-950 font-extrabold uppercase tracking-widest text-xs shadow-[0_0_20px_rgba(245,158,11,0.3)] hover:shadow-[0_0_25px_rgba(245,158,11,0.45)] hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]",
     };
     
     const sizes = {
       default: "h-10 px-4 py-2",
-      sm: "h-9 rounded-md px-3",
-      lg: "h-12 rounded-md px-8",
+      sm: "h-9 rounded-lg px-3 text-xs",
+      lg: "h-12 rounded-xl px-8 text-base",
       icon: "h-10 w-10",
     };
 

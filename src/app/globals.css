@@ -1,11 +1,15 @@
 @import "tailwindcss";
 
 @theme {
-  --color-brand-light: #F9F8F6; /* Soft off-white */
-  --color-brand-dark: #1A1A1A; /* Deep charcoal */
-  --color-brand-accent: #D4AF37; /* Muted gold / taupe */
-  --color-brand-accent-hover: #B5952F;
-  --color-brand-muted: #8E8E8E;
+  --color-brand-light: #FDFBF7; /* Warm natural beige / white */
+  --color-brand-dark: #141210; /* Warm charcoal / espresso black */
+  --color-brand-surface: #1E1A17; /* Rich espresso surface */
+  --color-brand-card: #2B231D; /* Elevated warm timber stone */
+  --color-brand-border: rgba(229, 169, 60, 0.22); /* Warm champagne gold highlight */
+  --color-brand-accent: #E5A93C; /* Rich warm champagne gold */
+  --color-brand-accent-hover: #C68B2C; /* Deep artisan gold */
+  --color-brand-accent-glow: rgba(229, 169, 60, 0.35);
+  --color-brand-muted: #C6C0B4; /* Warm luminous stone */
   
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-heading: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
@@ -36,4 +40,133 @@ h1, h2, h3, h4, h5, h6 {
 /* Smooth scrolling for the whole page */
 html {
   scroll-behavior: smooth;
+}
+
+/* --- Warm Hospitality Frosted Glassmorphism UI Classes (Clearer, Lighter, Boutique Hotel Elegance) --- */
+.card-luxury {
+  background-color: rgba(36, 30, 25, 0.45);
+  border: 1px solid rgba(229, 169, 60, 0.22);
+  border-radius: 1.75rem;
+  backdrop-filter: blur(16px);
+  box-shadow: 0 15px 35px -10px rgba(0, 0, 0, 0.55), 0 0 25px -5px rgba(229, 169, 60, 0.12);
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.card-luxury:hover {
+  border-color: rgba(229, 169, 60, 0.45);
+  background-color: rgba(44, 37, 31, 0.55);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 35px -5px rgba(229, 169, 60, 0.25);
+  transform: translateY(-4px);
+}
+
+.input-luxury {
+  background-color: rgba(26, 22, 18, 0.65);
+  border: 1px solid rgba(229, 169, 60, 0.28);
+  border-radius: 0.875rem;
+  padding: 0.75rem 1rem;
+  color: #FDFBF7;
+  font-size: 0.875rem;
+  backdrop-filter: blur(12px);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.input-luxury:focus {
+  outline: none;
+  border-color: #E5A93C;
+  background-color: rgba(36, 30, 25, 0.85);
+  box-shadow: 0 0 0 2px rgba(229, 169, 60, 0.3);
+}
+
+.glow-amber {
+  box-shadow: 0 0 35px rgba(229, 169, 60, 0.35);
+}
+
+.glow-amber-sm {
+  box-shadow: 0 0 20px rgba(229, 169, 60, 0.22);
+}
+
+/* Standardized Status Badges */
+.badge-available {
+  background-color: rgba(16, 185, 129, 0.18);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #34D399;
+}
+.badge-reserved {
+  background-color: rgba(229, 169, 60, 0.18);
+  border: 1px solid rgba(229, 169, 60, 0.35);
+  color: #F0BA53;
+}
+.badge-occupied {
+  background-color: rgba(244, 63, 94, 0.18);
+  border: 1px solid rgba(244, 63, 94, 0.35);
+  color: #FB7185;
+}
+.badge-cleaning {
+  background-color: rgba(14, 165, 233, 0.18);
+  border: 1px solid rgba(14, 165, 233, 0.35);
+  color: #38BDF8;
+}
+
+/* --- Landing Experience v2: Warm Resort Hospitality Tokens --- */
+.ease-cinematic {
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.gpu-accelerated {
+  will-change: transform, opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+.bg-grain {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.03'/%3E%3C/svg%3E");
+}
+
+.text-balance {
+  text-wrap: balance;
+}
+
+.tracking-resort-wide {
+  letter-spacing: 0.06em;
+}
+
+.tracking-resort-widest {
+  letter-spacing: 0.12em;
+}
+
+/* 5-Level Heading Hierarchy Standard (Serene, Warm & High Contrast Readability) */
+.hero-title {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.08;
+}
+
+.section-heading {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  line-height: 1.2;
+}
+
+.supporting-paragraph {
+  font-family: var(--font-sans);
+  font-weight: 300;
+  line-height: 1.85;
+  color: #ECE6DD; /* Warm luminous cream for crisp readability */
+}
+
+.micro-label {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.75rem;
+  color: #E5A93C; /* Rich warm champagne gold */
+}
+
+.metadata-text {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  line-height: 1.6;
+  font-size: 0.8125rem;
+  color: #C6C0B4; /* Warm luminous stone */
 }

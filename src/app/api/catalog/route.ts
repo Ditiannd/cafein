@@ -15,6 +15,7 @@ export async function GET() {
       badge: catalogItems.badge,
       isBestSeller: catalogItems.isBestSeller,
       isAvailable: catalogItems.isAvailable,
+      modifierOptions: catalogItems.modifierOptions,
       promotionId: promotions.id,
       discountType: promotions.discountType,
       discountValue: promotions.discountValue,

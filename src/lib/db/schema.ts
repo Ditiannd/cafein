@@ -1,5 +1,12 @@
-import { pgTable, text, serial, integer, boolean, timestamp, uuid, pgEnum, real } from 'drizzle-orm/pg-core';
+import { pgTable, text, serial, integer, boolean, timestamp, uuid, pgEnum, real, jsonb } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
+
+export type ModifierOption = { name: string; upcharge: number };
+export type ModifierOptions = {
+  iceLevels?: ModifierOption[];
+  sugarLevels?: ModifierOption[];
+  milkTypes?: ModifierOption[];
+};
 
 // --- Enums ---
 
@@ -57,6 +64,7 @@ export const catalogItems = pgTable('catalog_items', {
   badge: text('badge'),
   isBestSeller: boolean('is_best_seller').default(false).notNull(),
   isAvailable: boolean('is_available').default(true).notNull(),
+  modifierOptions: jsonb('modifier_options').$type<ModifierOptions>(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
@@ -150,6 +158,9 @@ export const layoutVersions = pgTable('layout_versions', {
   name: text('name').notNull(),
   isActive: boolean('is_active').default(false).notNull(),
   canvasSettings: text('canvas_settings'),
+  defaultViewportX: real('default_viewport_x'),
+  defaultViewportY: real('default_viewport_y'),
+  defaultViewportZoom: real('default_viewport_zoom'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });

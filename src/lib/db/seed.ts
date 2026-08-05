@@ -2,6 +2,10 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import { hashPassword } from '../auth';
 import * as schema from './schema';
+import { inArray } from 'drizzle-orm';
+import { config } from 'dotenv';
+config({ path: '.env.local' });
+config({ path: '.env' });
 
 async function seed() {
   const connectionString = process.env.DATABASE_URL;
@@ -49,15 +53,36 @@ async function seed() {
   const catMap = Object.fromEntries(cats.map(c => [c.name, c.id]));
 
   // --- Catalog Items ---
+  const defaultModifiers = {
+    iceLevels: [
+      { name: 'Less Ice', upcharge: 0 },
+      { name: 'Normal', upcharge: 0 },
+      { name: 'Extra Ice', upcharge: 0 }
+    ],
+    sugarLevels: [
+      { name: 'Less Sugar', upcharge: 0 },
+      { name: 'Normal', upcharge: 0 },
+      { name: 'Extra Sugar', upcharge: 0 }
+    ],
+    milkTypes: [
+      { name: 'Fresh Milk', upcharge: 0 },
+      { name: 'Oat Milk', upcharge: 10000 },
+      { name: 'Almond Milk', upcharge: 12000 }
+    ]
+  };
+
   const catalogData = [
-    { name: 'Oat Milk Latte', price: 45000, categoryId: catMap['Signature'], badge: 'Best Seller', image: 'https://images.unsplash.com/photo-1481833722971-ce9c105404bb?w=500&auto=format&fit=crop&q=60', isBestSeller: true },
-    { name: 'Truffle Croissant', price: 38000, categoryId: catMap['Pastries'], badge: 'New', image: 'https://images.unsplash.com/photo-1549903072-7e6e0d65612d?w=500&auto=format&fit=crop&q=60', isBestSeller: false },
-    { name: 'Classic Cappuccino', price: 35000, categoryId: catMap['Classic Coffee'], badge: null, image: 'https://images.unsplash.com/photo-1534778101976-62847782c213?w=500&auto=format&fit=crop&q=60', isBestSeller: false },
-    { name: 'Kyoto Matcha Blend', price: 42000, categoryId: catMap['Non-Coffee'], badge: 'Limited', image: 'https://images.unsplash.com/photo-1515823662972-da6a2e4d3002?w=500&auto=format&fit=crop&q=60', isBestSeller: true },
+    { name: 'Oat Milk Latte', price: 45000, categoryId: catMap['Signature'], badge: 'Best Seller', image: 'https://images.unsplash.com/photo-1481833722971-ce9c105404bb?w=500&auto=format&fit=crop&q=60', isBestSeller: true, modifierOptions: defaultModifiers },
+    { name: 'Truffle Croissant', price: 38000, categoryId: catMap['Pastries'], badge: 'New', image: 'https://images.unsplash.com/photo-1549903072-7e6e0d65612d?w=500&auto=format&fit=crop&q=60', isBestSeller: false, modifierOptions: null },
+    { name: 'Classic Cappuccino', price: 35000, categoryId: catMap['Classic Coffee'], badge: null, image: 'https://images.unsplash.com/photo-1534778101976-62847782c213?w=500&auto=format&fit=crop&q=60', isBestSeller: false, modifierOptions: defaultModifiers },
+    { name: 'Kyoto Matcha Blend', price: 42000, categoryId: catMap['Non-Coffee'], badge: 'Limited', image: 'https://images.unsplash.com/photo-1515823662972-da6a2e4d3002?w=500&auto=format&fit=crop&q=60', isBestSeller: true, modifierOptions: defaultModifiers },
   ];
 
   await db.insert(schema.catalogItems).values(catalogData).onConflictDoNothing();
   console.log('✅ Catalog items seeded');
+
+  // Update existing modifiers
+  await db.update(schema.catalogItems).set({ modifierOptions: defaultModifiers }).where(inArray(schema.catalogItems.categoryId, cats.filter(c => ['Signature', 'Classic Coffee', 'Non-Coffee'].includes(c.name)).map(c => c.id)));
 
   // Fetch catalog item IDs for promotions
   const items = await db.select().from(schema.catalogItems);
@@ -97,6 +122,33 @@ async function seed() {
     { title: 'Latte Art Masterclass', date: 'Saturday, 10 AM', description: 'Learn the secrets of perfect microfoam and basic latte art patterns from our head barista.', image: 'https://images.unsplash.com/photo-1497935586351-b67a49e012bf?w=800&auto=format&fit=crop&q=60', isVisible: true },
   ]).onConflictDoNothing();
   console.log('✅ Events seeded');
+
+  // --- Inventory ---
+  await db.insert(schema.inventoryItems).values([
+    { name: 'Oat Milk Barista Edition (Oatly)', quantity: 12, unit: 'cartons', minThreshold: 5 },
+    { name: 'Gayo Aceh Special Reserve Beans', quantity: 15, unit: 'pax (1kg)', minThreshold: 5 },
+    { name: 'Artisanal Truffle Butter Croissant', quantity: 24, unit: 'pcs', minThreshold: 10 },
+    { name: 'Uji Ceremonial Matcha (Kyoto)', quantity: 2, unit: 'tins', minThreshold: 3 },
+    { name: 'Sanctuary Eco Paper Cups 8oz', quantity: 3, unit: 'cartons', minThreshold: 4 },
+  ]).onConflictDoNothing();
+  console.log('✅ Inventory seeded');
+
+  // --- Expenses (for analytics) ---
+  const pastDates = Array.from({ length: 7 }).map((_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    return d;
+  });
+
+  const sampleExpenses = pastDates.map((date, i) => ({
+    description: `Daily Operations Restock ${i}`,
+    amount: Math.floor(Math.random() * 2000000) + 500000,
+    category: 'Restock',
+    date: date,
+  }));
+
+  await db.insert(schema.expenses).values(sampleExpenses).onConflictDoNothing();
+  console.log('✅ Expenses seeded');
 
   console.log('🎉 Database seeding complete!');
   await client.end();

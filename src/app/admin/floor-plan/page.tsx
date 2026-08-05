@@ -171,6 +171,23 @@ export default function AdminFloorPlanPage() {
     }
   };
 
+  const handleSetDefaultViewport = async () => {
+    try {
+      setSaving(true);
+      await api.floor.updateLayout({
+        defaultViewportX: pan.x,
+        defaultViewportY: pan.y,
+        defaultViewportZoom: zoom,
+      });
+      alert('Default viewport saved successfully! This framing will be used in Customer and Barista views.');
+    } catch (error) {
+      console.error('Failed to save default viewport:', error);
+      alert('Failed to save default viewport.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // --- Keyboard Shortcuts ---
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -527,6 +544,11 @@ export default function AdminFloorPlanPage() {
           </button>
           <button onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }} className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors" title="Reset Viewport">
             <Maximize className="w-4 h-4" />
+          </button>
+          <div className="h-4 w-[1px] bg-zinc-800 mx-1" />
+          <button onClick={handleSetDefaultViewport} disabled={saving} className="flex items-center gap-1.5 px-2.5 py-1 text-zinc-400 hover:text-amber-400 hover:bg-zinc-800 rounded-lg transition-colors text-xs font-medium" title="Save this camera view as default for Customer/Barista">
+            <Eye className="w-3.5 h-3.5" />
+            <span>Set Default View</span>
           </button>
         </div>
 

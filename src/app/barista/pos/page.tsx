@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Plus, Minus, Trash2, X, CreditCard, Banknote, QrCode, CheckCircle2 } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, X, CreditCard, Banknote, QrCode, CheckCircle2, Sparkles, Coffee, History, Shield, Tag } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useApiQuery } from '@/lib/hooks';
 import { api, CatalogItem, TableItem } from '@/lib/api';
@@ -76,13 +76,36 @@ export default function POSPage() {
   const { data: todayOrders = [], refetch: refetchHistory } = useApiQuery('pos-history', () => api.orders.list({ date: 'today', source: 'pos' }));
 
   // --- Helpers ---
-
-  const getEffectivePrice = (item: CatalogItem) => {
-    if (item.discountType && item.discountValue) {
-      if (item.discountType === 'percentage') return item.price * (1 - item.discountValue / 100);
-      return Math.max(0, item.price - item.discountValue);
+  const computeModifierUpcharge = (item: CatalogItem, mods?: { iceLevel?: string; sugarLevel?: string; milkType?: string }) => {
+    let upcharge = 0;
+    if (!item.modifierOptions || !mods) return upcharge;
+    if (mods.iceLevel && item.modifierOptions.iceLevels) {
+      const mod = item.modifierOptions.iceLevels.find(i => i.name === mods.iceLevel);
+      if (mod) upcharge += mod.upcharge;
     }
-    return item.price;
+    if (mods.sugarLevel && item.modifierOptions.sugarLevels) {
+      const mod = item.modifierOptions.sugarLevels.find(s => s.name === mods.sugarLevel);
+      if (mod) upcharge += mod.upcharge;
+    }
+    if (mods.milkType && item.modifierOptions.milkTypes) {
+      const mod = item.modifierOptions.milkTypes.find(m => m.name === mods.milkType);
+      if (mod) upcharge += mod.upcharge;
+    }
+    return upcharge;
+  };
+
+  const getEffectivePrice = (item: CatalogItem, upcharge: number = 0) => {
+    const basePrice = item.price + upcharge;
+    if (item.discountType && item.discountValue) {
+      if (item.discountType === 'percentage') return basePrice * (1 - item.discountValue / 100);
+      return Math.max(0, basePrice - item.discountValue);
+    }
+    return basePrice;
+  };
+
+  const getCartItemPrice = (cartItem: CartItem) => {
+    const upcharge = computeModifierUpcharge(cartItem.menuItem, cartItem.modifiers);
+    return getEffectivePrice(cartItem.menuItem, upcharge);
   };
 
   const hasModifiers = (item: CatalogItem) => item.category !== 'Pastries';
@@ -162,10 +185,10 @@ export default function POSPage() {
     setShowCheckout(false);
     
     try {
-      // Group cart items
-      const itemMap = new Map<number, { catalogItemId: number; quantity: number; iceLevel?: string; sugarLevel?: string; milkType?: string }>();
+      const itemMap = new Map<string, { catalogItemId: number; quantity: number; iceLevel?: string; sugarLevel?: string; milkType?: string }>();
       for (const item of activeTab.cart) {
-        const key = item.menuItem.id;
+        const mods = item.modifiers ? `-${item.modifiers.iceLevel}-${item.modifiers.sugarLevel}-${item.modifiers.milkType}` : '';
+        const key = `${item.menuItem.id}${mods}`;
         const existing = itemMap.get(key);
         if (existing) {
           existing.quantity += item.quantity;
@@ -186,7 +209,7 @@ export default function POSPage() {
         source: 'pos',
         items: Array.from(itemMap.values()),
         paymentMethod: paymentMethod,
-        customerName: 'Walk-in',
+        customerName: 'Walk-in Patron',
         orderType: activeTab.orderType === 'Dine In' ? 'dine_in' : 'takeaway',
         tableNumber: selectedTableObj ? selectedTableObj.name : activeTab.tableId || undefined,
         tableId: selectedTableObj ? selectedTableObj.id : activeTab.tableId || undefined,
@@ -225,11 +248,13 @@ export default function POSPage() {
   };
 
   // Calculations
-  const subtotal = activeTab.cart.reduce((sum, item) => sum + (item.menuItem.price * item.quantity), 0);
+  const subtotal = activeTab.cart.reduce((sum, item) => sum + ((item.menuItem.price + computeModifierUpcharge(item.menuItem, item.modifiers)) * item.quantity), 0);
   const discountTotal = activeTab.cart.reduce((sum, item) => {
-    const effective = getEffectivePrice(item.menuItem);
-    if (effective < item.menuItem.price) {
-      return sum + ((item.menuItem.price - effective) * item.quantity);
+    const upcharge = computeModifierUpcharge(item.menuItem, item.modifiers);
+    const base = item.menuItem.price + upcharge;
+    const effective = getEffectivePrice(item.menuItem, upcharge);
+    if (effective < base) {
+      return sum + ((base - effective) * item.quantity);
     }
     return sum;
   }, 0);
@@ -248,65 +273,64 @@ export default function POSPage() {
   });
 
   return (
-    <div className="h-[calc(100vh-64px)] md:h-screen flex flex-col md:flex-row overflow-hidden bg-background">
+    <div className="h-[calc(100vh-5rem)] flex flex-col md:flex-row overflow-hidden bg-[#141210] font-sans select-none text-[#FFFFFF]">
       
-      {/* Left Area: Menu Browser */}
-      <div className="flex-1 flex flex-col min-w-0 border-r border-white/10">
+      {/* Left Area: Menu Catalog Browser */}
+      <div className="flex-1 flex flex-col min-w-0 border-r border-[#E5A93C]/20/80 bg-[#141210]">
         
-        {/* Header & Search */}
-        <div className="p-4 border-b border-white/10 shrink-0">
+        {/* Header & Search Bar */}
+        <div className="p-5 border-b border-[#E5A93C]/20/80 shrink-0 bg-[#141210]/90 backdrop-blur-md">
           <div className="relative mb-4">
-            <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500" />
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 transform -translate-y-1/2 text-[#C6C0B4]" />
             <input 
               type="text"
-              placeholder="Search menu items..."
+              placeholder="Search artisanal beverages, roasts & pastries..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-3 text-sm text-white focus:outline-none focus:border-[var(--color-brand-accent)] transition-colors"
+              className="input-luxury w-full bg-[#1E1A17] border border-[#E5A93C]/20 focus:border-[#E5A93C] rounded-xl pl-10 pr-4 py-2.5 text-xs font-mono text-white placeholder:text-zinc-600 shadow-inner"
             />
           </div>
-          <div className="flex flex-col gap-3">
-            {/* Sections */}
-            <div className="flex overflow-x-auto hide-scrollbar gap-2">
+          
+          <div className="flex overflow-x-auto hide-scrollbar gap-2.5 font-mono text-xs">
+            <button
+              onClick={() => { setActiveSection('All'); setActiveCategory('All Categories'); }}
+              className={`whitespace-nowrap px-4 py-2 rounded-xl transition-all font-bold ${
+                activeSection === 'All' 
+                  ? 'bg-[#E5A93C]/20 text-[#E5A93C] border border-[#E5A93C]/50 shadow-[0_0_12px_rgba(245,158,11,0.2)]' 
+                  : 'bg-[#1E1A17]/80 text-[#C6C0B4] hover:bg-[#2B231D] border border-[#E5A93C]/20 hover:text-white'
+              }`}
+            >
+              ● All Catalog
+            </button>
+            <button
+              onClick={() => { setActiveSection('Promotions'); setActiveCategory('All Categories'); }}
+              className={`whitespace-nowrap px-4 py-2 rounded-xl transition-all font-bold flex items-center gap-1.5 ${
+                activeSection === 'Promotions' 
+                  ? 'bg-[#E5A93C]/20 text-[#E5A93C] border border-[#E5A93C]/50 shadow-[0_0_12px_rgba(245,158,11,0.2)]' 
+                  : 'bg-[#1E1A17]/80 text-[#C6C0B4] hover:bg-[#2B231D] border border-[#E5A93C]/20 hover:text-white'
+              }`}
+            >
+              <Tag className="w-3.5 h-3.5 text-rose-400" />
+              <span>Promotions</span>
+            </button>
+            {categoriesFromCatalog.map(cat => (
               <button
-                onClick={() => { setActiveSection('All'); setActiveCategory('All Categories'); }}
-                className={`whitespace-nowrap px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  activeSection === 'All' 
-                    ? 'bg-[var(--color-brand-accent)] text-black' 
-                    : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                key={cat}
+                onClick={() => { setActiveSection(cat!); setActiveCategory('All Categories'); }}
+                className={`whitespace-nowrap px-4 py-2 rounded-xl transition-all font-bold ${
+                  activeSection === cat 
+                    ? 'bg-[#E5A93C]/20 text-[#E5A93C] border border-[#E5A93C]/50 shadow-[0_0_12px_rgba(245,158,11,0.2)]' 
+                    : 'bg-[#1E1A17]/80 text-[#C6C0B4] hover:bg-[#2B231D] border border-[#E5A93C]/20 hover:text-white'
                 }`}
               >
-                All Sections
+                {cat}
               </button>
-              <button
-                onClick={() => { setActiveSection('Promotions'); setActiveCategory('All Categories'); }}
-                className={`whitespace-nowrap px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  activeSection === 'Promotions' 
-                    ? 'bg-[var(--color-brand-accent)] text-black' 
-                    : 'bg-white/5 text-gray-400 hover:bg-white/10'
-                }`}
-              >
-                Promotions
-              </button>
-              {categoriesFromCatalog.map(cat => (
-                <button
-                  key={cat}
-                  onClick={() => { setActiveSection(cat!); setActiveCategory('All Categories'); }}
-                  className={`whitespace-nowrap px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    activeSection === cat 
-                      ? 'bg-[var(--color-brand-accent)] text-black' 
-                      : 'bg-white/5 text-gray-400 hover:bg-white/10'
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
+            ))}
           </div>
         </div>
 
         {/* Menu Grid */}
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="flex-1 overflow-y-auto p-5 custom-scrollbar">
           <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filteredMenu.map(item => {
               const effectivePrice = getEffectivePrice(item);
@@ -315,28 +339,42 @@ export default function POSPage() {
                 <div 
                   key={item.id}
                   onClick={() => handleMenuItemClick(item)}
-                  className="bg-white/5 border border-white/10 rounded-xl overflow-hidden cursor-pointer hover:border-[var(--color-brand-accent)] hover:shadow-[0_0_15px_rgba(200,169,126,0.1)] transition-all group flex flex-col"
+                  className="card-luxury bg-[#1E1A17]/70 border border-[#E5A93C]/20/80 rounded-2xl overflow-hidden cursor-pointer hover:border-[#E5A93C]/50 hover:shadow-[0_0_20px_rgba(245,158,11,0.15)] transition-all group flex flex-col justify-between"
                 >
-                  <div className="h-32 relative bg-white/5 shrink-0 overflow-hidden">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={item.image} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                    {hasModifiers(item) && (
-                      <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-md px-2 py-0.5 rounded text-[10px] text-white font-medium">
-                        Modifiable
-                      </div>
-                    )}
-                  </div>
-                  <div className="p-4 flex flex-col justify-between h-full">
-                    <div>
-                      <h3 className="text-white font-medium mb-1 truncate">{item.name}</h3>
-                      {hasDiscount ? (
-                        <div className="flex items-center gap-2">
-                          <span className="text-[var(--color-brand-accent)] font-semibold text-sm">Rp {effectivePrice.toLocaleString('id-ID')}</span>
-                          <span className="text-gray-500 line-through text-xs">Rp {item.price.toLocaleString('id-ID')}</span>
+                  <div>
+                    <div className="h-32 relative bg-[#141210] shrink-0 overflow-hidden border-b border-[#E5A93C]/20/50">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={item.image} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/90 via-transparent to-transparent opacity-60" />
+                      
+                      {hasModifiers(item) && (
+                        <div className="absolute top-2 left-2 bg-[#1E1A17]/90 backdrop-blur-md px-2 py-0.5 rounded-md text-[10px] text-[#E5A93C] font-mono font-bold border border-[#E5A93C]/30">
+                          Modifiable
                         </div>
-                      ) : (
-                        <span className="text-[var(--color-brand-accent)] font-semibold text-sm">Rp {item.price.toLocaleString('id-ID')}</span>
                       )}
+                      {hasDiscount && (
+                        <div className="absolute top-2 right-2 bg-rose-500 text-white px-2 py-0.5 rounded-md text-[10px] font-mono font-black">
+                          {item.discountType === 'percentage' ? `-${item.discountValue}%` : 'PROMO'}
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-3.5">
+                      <h3 className="text-white font-heading font-extrabold text-sm mb-1 truncate group-hover:text-[#E5A93C] transition-colors">{item.name}</h3>
+                      <p className="text-[10px] font-mono text-[#C6C0B4] uppercase tracking-wider">{item.category}</p>
+                    </div>
+                  </div>
+
+                  <div className="px-3.5 pb-3.5 pt-2 border-t border-[#E5A93C]/20/60 flex items-center justify-between bg-[#141210]/40">
+                    {hasDiscount ? (
+                      <div className="flex items-baseline gap-1.5 font-mono">
+                        <span className="text-[#E5A93C] font-bold text-xs">Rp {effectivePrice.toLocaleString('id-ID')}</span>
+                        <span className="text-zinc-600 line-through text-[10px]">Rp {item.price.toLocaleString('id-ID')}</span>
+                      </div>
+                    ) : (
+                      <span className="text-[#E5A93C] font-mono font-bold text-xs">Rp {item.price.toLocaleString('id-ID')}</span>
+                    )}
+                    <div className="w-6 h-6 rounded-lg bg-[#1E1A17] border border-[#E5A93C]/30 flex items-center justify-center text-[#C6C0B4] group-hover:bg-[#E5A93C] group-hover:text-zinc-950 group-hover:border-[#E5A93C] transition-all font-bold text-xs">
+                      +
                     </div>
                   </div>
                 </div>
@@ -346,82 +384,97 @@ export default function POSPage() {
         </div>
       </div>
 
-      {/* Right Area: Cart & Checkout */}
-      <div className="w-full md:w-[400px] flex flex-col bg-white/5 shrink-0">
+      {/* Right Area: Order Tray & Multi-Tab Checkout */}
+      <div className="w-full md:w-[420px] flex flex-col bg-[#141210] shrink-0 border-l border-[#E5A93C]/20/80 z-20">
         
-        {/* Order Tabs */}
-        <div className="flex overflow-x-auto hide-scrollbar bg-background border-b border-white/10 shrink-0">
+        {/* Order Tabs Header */}
+        <div className="flex overflow-x-auto hide-scrollbar bg-[#141210] border-b border-[#E5A93C]/20/80 shrink-0 font-mono text-xs">
           {orderTabs.map(tab => (
             <div 
               key={tab.id}
               onClick={() => setActiveTabId(tab.id)}
-              className={`flex items-center gap-2 px-4 py-3 min-w-[120px] cursor-pointer border-r border-white/10 transition-colors group ${
-                activeTabId === tab.id ? 'bg-white/5 border-b-2 border-b-[var(--color-brand-accent)]' : 'hover:bg-white/5'
+              className={`flex items-center gap-2 px-4 py-3 min-w-[130px] cursor-pointer border-r border-[#E5A93C]/20/80 transition-all group ${
+                activeTabId === tab.id 
+                  ? 'bg-[#1E1A17] text-[#E5A93C] border-t-2 border-t-amber-500 font-bold shadow-inner' 
+                  : 'bg-[#141210] text-[#C6C0B4] hover:text-[#ECE6DD] hover:bg-[#1E1A17]/40'
               }`}
             >
-              <span className={`text-sm font-medium truncate ${activeTabId === tab.id ? 'text-white' : 'text-gray-400'}`}>
-                {tab.name}
-              </span>
+              <span className="truncate flex-1">{tab.name}</span>
+              {tab.cart.length > 0 && (
+                <span className="bg-[#E5A93C]/20 text-[#E5A93C] px-1.5 py-0.2 rounded text-[10px] font-extrabold">
+                  {tab.cart.length}
+                </span>
+              )}
               <button 
                 onClick={(e) => handleCloseTab(tab.id, e)}
-                className={`ml-auto p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white/10 ${activeTabId === tab.id ? 'opacity-100 text-gray-300' : 'text-gray-500'}`}
+                className={`p-1 rounded-md opacity-0 group-hover:opacity-100 transition-all hover:bg-rose-500/20 hover:text-rose-400 ${
+                  activeTabId === tab.id ? 'opacity-100 text-[#C6C0B4]' : 'text-zinc-600'
+                }`}
               >
                 <X className="w-3 h-3" />
               </button>
             </div>
           ))}
-            <div className="flex gap-2">
-              <button 
-                onClick={() => setShowHistory(true)}
-                className="px-4 py-3 text-gray-400 hover:text-white hover:bg-white/5 transition-colors flex items-center justify-center shrink-0 border-l border-white/10"
-                title="Today's History"
-              >
-                <span className="text-sm font-medium">Today&apos;s History</span>
-              </button>
-              <button 
-                onClick={handleCreateNewTab}
-                className="px-4 py-3 text-gray-400 hover:text-white hover:bg-white/5 transition-colors flex items-center justify-center shrink-0 border-l border-white/10"
-                title="New Order Tab"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
-            </div>
+          <div className="flex shrink-0">
+            <button 
+              onClick={() => setShowHistory(true)}
+              className="px-3 py-3 text-[#C6C0B4] hover:text-[#E5A93C] hover:bg-[#1E1A17]/60 transition-all flex items-center justify-center border-r border-[#E5A93C]/20/80"
+              title="Today's Ledger"
+            >
+              <History className="w-4 h-4" />
+            </button>
+            <button 
+              onClick={handleCreateNewTab}
+              className="px-4 py-3 text-[#C6C0B4] hover:text-white hover:bg-[#1E1A17]/60 transition-all flex items-center justify-center bg-[#1E1A17]/30"
+              title="New Order Station Tab"
+            >
+              <Plus className="w-4 h-4 text-[#E5A93C]" />
+            </button>
           </div>
+        </div>
 
-        {/* Order Type & Table Selection */}
-        <div className="bg-background border-b border-white/10 p-4 shrink-0 space-y-3">
-          <div className="flex gap-2 p-1 bg-white/5 rounded-lg border border-white/10">
+        {/* Order Type & Canonical Table Selector */}
+        <div className="bg-[#1E1A17]/40 border-b border-[#E5A93C]/20/80 p-4 shrink-0 space-y-3 font-mono text-xs">
+          <div className="flex gap-2 p-1 bg-[#141210] rounded-xl border border-[#E5A93C]/20">
             <button 
               onClick={() => updateOrderMeta({ orderType: 'Dine In' })}
-              className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${activeTab.orderType === 'Dine In' ? 'bg-[var(--color-brand-accent)] text-black' : 'text-gray-400 hover:text-white'}`}
+              className={`flex-1 py-2 font-bold rounded-lg transition-all ${
+                activeTab.orderType === 'Dine In' 
+                  ? 'bg-[#E5A93C]/20 text-[#E5A93C] border border-[#E5A93C]/40 shadow-sm' 
+                  : 'text-[#C6C0B4] hover:text-[#ECE6DD]'
+              }`}
             >
-              Dine In
+              ● Dine In (Table Linked)
             </button>
             <button 
               onClick={() => updateOrderMeta({ orderType: 'Takeaway', tableId: null })}
-              className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${activeTab.orderType === 'Takeaway' ? 'bg-[var(--color-brand-accent)] text-black' : 'text-gray-400 hover:text-white'}`}
+              className={`flex-1 py-2 font-bold rounded-lg transition-all ${
+                activeTab.orderType === 'Takeaway' 
+                  ? 'bg-[#E5A93C]/20 text-[#E5A93C] border border-[#E5A93C]/40 shadow-sm' 
+                  : 'text-[#C6C0B4] hover:text-[#ECE6DD]'
+              }`}
             >
-              Takeaway
+              ○ Takeaway Counter
             </button>
           </div>
           
           {activeTab.orderType === 'Dine In' && (
             <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-400 min-w-[60px]">Table:</span>
+              <span className="text-[#C6C0B4] font-bold shrink-0">Table Allocation:</span>
               <select 
                 value={activeTab.tableId || ''}
                 onChange={(e) => updateOrderMeta({ tableId: e.target.value })}
-                className="flex-1 bg-white/5 border border-white/10 rounded-lg p-2 text-sm text-white focus:border-[var(--color-brand-accent)] focus:outline-none appearance-none"
+                className="input-luxury flex-1 bg-[#141210] border border-[#E5A93C]/20 rounded-xl p-2 text-white focus:border-[#E5A93C] focus:outline-none appearance-none font-semibold text-xs"
               >
-                <option value="" disabled className="bg-zinc-900 text-white">Select a table</option>
+                <option value="" disabled className="bg-[#141210] text-[#C6C0B4]">Select Canonical Resort Table...</option>
                 {canonicalTables.map((t: TableItem) => (
                   <option 
                     key={t.id} 
                     value={t.id} 
                     disabled={t.status === 'out_of_service' || t.status === 'cleaning'} 
-                    className="bg-zinc-900 text-white"
+                    className="bg-[#141210] text-white"
                   >
-                    {t.name} ({t.capacity} Pax) - {t.status.replace('_', ' ').toUpperCase()}
+                    Table {t.name} ({t.capacity} Pax) — {t.status.replace('_', ' ').toUpperCase()}
                   </option>
                 ))}
               </select>
@@ -429,38 +482,38 @@ export default function POSPage() {
           )}
         </div>
 
-        {/* Cart Items */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {/* Cart Tray Items */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-3 font-mono text-xs custom-scrollbar">
           {activeTab.cart.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-gray-500">
-              <Search className="w-12 h-12 mb-4 opacity-20" />
-              <p>Order is empty.</p>
-              <p className="text-sm">Select items from the menu.</p>
+            <div className="h-full flex flex-col items-center justify-center text-zinc-600 space-y-2 border border-dashed border-[#E5A93C]/20/60 rounded-2xl p-6">
+              <Coffee className="w-10 h-10 text-zinc-700 stroke-[1.5]" />
+              <p className="font-semibold text-[#C6C0B4]">Station Tray is Empty</p>
+              <p className="text-[11px] text-center text-zinc-600">Select items from the catalog browser to build this order tab.</p>
             </div>
           ) : (
             activeTab.cart.map(item => {
-              const effectivePrice = getEffectivePrice(item.menuItem);
+              const effectivePrice = getCartItemPrice(item);
               return (
-                <div key={item.id} className="flex gap-3 bg-white/5 p-3 rounded-lg border border-white/10 relative group">
+                <div key={item.id} className="flex gap-3 bg-[#1E1A17]/70 p-3.5 rounded-xl border border-[#E5A93C]/20/80 relative group hover:border-[#E5A93C]/30 transition-all">
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between items-start mb-1">
-                      <h4 className="text-white text-sm font-medium truncate pr-2">{item.menuItem.name}</h4>
-                      <span className="text-[var(--color-brand-accent)] text-sm font-semibold shrink-0">
+                      <h4 className="text-white font-heading font-extrabold text-sm truncate pr-2">{item.menuItem.name}</h4>
+                      <span className="text-[#E5A93C] font-bold text-xs shrink-0">
                         Rp {(effectivePrice * item.quantity).toLocaleString('id-ID')}
                       </span>
                     </div>
                     {item.modifiers && (
-                      <p className="text-xs text-gray-500 mt-1 leading-tight">
+                      <p className="text-[11px] text-[#C6C0B4] mt-1 leading-tight">
                         {item.modifiers.iceLevel} • {item.modifiers.sugarLevel} • {item.modifiers.milkType}
                       </p>
                     )}
                   </div>
-                  <div className="flex flex-col items-center justify-between bg-white/5 rounded-lg w-10">
-                    <button onClick={() => updateQuantity(item.id, 1)} className="w-full h-8 flex items-center justify-center text-gray-400 hover:text-white"><Plus className="w-3 h-3" /></button>
-                    <span className="text-sm font-semibold">{item.quantity}</span>
-                    <button onClick={() => updateQuantity(item.id, -1)} className="w-full h-8 flex items-center justify-center text-gray-400 hover:text-white">
-                      {item.quantity === 1 ? <Trash2 className="w-3 h-3 text-red-400" /> : <Minus className="w-3 h-3" />}
+                  <div className="flex items-center gap-1.5 bg-[#141210] border border-[#E5A93C]/20 rounded-lg p-1 shrink-0">
+                    <button onClick={() => updateQuantity(item.id, -1)} className="w-7 h-7 rounded bg-[#1E1A17] hover:bg-[#2B231D] flex items-center justify-center text-[#C6C0B4] hover:text-white transition-colors">
+                      {item.quantity === 1 ? <Trash2 className="w-3.5 h-3.5 text-rose-400" /> : <Minus className="w-3.5 h-3.5" />}
                     </button>
+                    <span className="w-6 text-center font-bold text-white text-xs">{item.quantity}</span>
+                    <button onClick={() => updateQuantity(item.id, 1)} className="w-7 h-7 rounded bg-[#1E1A17] hover:bg-[#2B231D] flex items-center justify-center text-[#C6C0B4] hover:text-white transition-colors"><Plus className="w-3.5 h-3.5" /></button>
                   </div>
                 </div>
               );
@@ -468,34 +521,35 @@ export default function POSPage() {
           )}
         </div>
 
-        {/* Totals & Checkout Button */}
-        <div className="bg-background border-t border-white/10 p-4 shrink-0 space-y-3">
-          <div className="flex justify-between text-sm text-gray-400">
-            <span>Subtotal</span>
-            <span>Rp {subtotal.toLocaleString('id-ID')}</span>
+        {/* Totals & Charge Button */}
+        <div className="bg-[#141210] border-t border-[#E5A93C]/20/80 p-5 shrink-0 space-y-2.5 font-mono text-xs">
+          <div className="flex justify-between text-[#C6C0B4]">
+            <span>Subtotal Amount</span>
+            <span className="text-white font-bold">Rp {subtotal.toLocaleString('id-ID')}</span>
           </div>
           {discountTotal > 0 && (
-            <div className="flex justify-between text-sm text-red-400">
-              <span>Discount</span>
-              <span>-Rp {discountTotal.toLocaleString('id-ID')}</span>
+            <div className="flex justify-between text-rose-400">
+              <span>Promotional Discount</span>
+              <span className="font-bold">-Rp {discountTotal.toLocaleString('id-ID')}</span>
             </div>
           )}
-          <div className="flex justify-between text-sm text-gray-400">
-            <span>Tax (11%)</span>
+          <div className="flex justify-between text-[#C6C0B4]">
+            <span>Resort Tax (11%)</span>
             <span>Rp {tax.toLocaleString('id-ID')}</span>
           </div>
-          <div className="flex justify-between text-lg font-semibold text-white pt-2 border-t border-white/5">
-            <span>Total</span>
-            <span className="text-[var(--color-brand-accent)]">Rp {total.toLocaleString('id-ID')}</span>
+          <div className="flex justify-between text-base font-bold text-white pt-2.5 border-t border-[#E5A93C]/20/80">
+            <span className="uppercase tracking-wider">Total Payable</span>
+            <span className="text-[#E5A93C] font-extrabold text-lg">Rp {total.toLocaleString('id-ID')}</span>
           </div>
           
           <Button 
             variant="luxury" 
-            className="w-full py-6 text-lg font-semibold mt-4 shadow-[0_0_20px_rgba(200,169,126,0.15)]"
+            className="w-full py-6 text-sm font-bold mt-3 gap-2 shadow-[0_0_25px_rgba(245,158,11,0.2)]"
             disabled={activeTab.cart.length === 0 || (activeTab.orderType === 'Dine In' && !activeTab.tableId)}
             onClick={() => setShowCheckout(true)}
           >
-            Charge • Rp {total.toLocaleString('id-ID')}
+            <Sparkles className="w-4 h-4" />
+            <span>Charge Station • Rp {total.toLocaleString('id-ID')}</span>
           </Button>
         </div>
 
@@ -505,153 +559,199 @@ export default function POSPage() {
 
       {/* Modifier Modal */}
       <AnimatePresence>
-        {selectedItemForMod && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        {selectedItemForMod && (() => {
+          const currentUpcharge = computeModifierUpcharge(selectedItemForMod, { iceLevel, sugarLevel, milkType });
+          const currentTotal = selectedItemForMod.price + currentUpcharge;
+          
+          return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 font-sans">
             <motion.div 
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-background rounded-2xl w-full max-w-md overflow-hidden shadow-2xl border border-white/10"
+              initial={{ scale: 0.95, opacity: 0, y: 15 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 15 }}
+              className="card-luxury bg-[#1E1A17] border border-[#E5A93C]/20 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl text-[#FFFFFF] font-mono text-xs"
             >
-              <div className="p-6 border-b border-white/10 flex justify-between items-center bg-white/5">
+              <div className="p-6 border-b border-[#E5A93C]/20/80 flex justify-between items-center bg-[#141210]/80 font-heading font-extrabold text-base text-white">
                 <div>
-                  <h2 className="text-xl font-semibold">{selectedItemForMod.name}</h2>
-                  <p className="text-[var(--color-brand-accent)] mt-1">Rp {selectedItemForMod.price.toLocaleString('id-ID')}</p>
+                  <h2>{selectedItemForMod.name}</h2>
+                  <p className="text-[#E5A93C] font-mono font-bold text-xs mt-0.5">Rp {currentTotal.toLocaleString('id-ID')}</p>
                 </div>
-                <button onClick={() => setSelectedItemForMod(null)} className="text-gray-400 hover:text-white"><X className="w-6 h-6" /></button>
+                <button onClick={() => setSelectedItemForMod(null)} className="p-2 rounded-xl bg-[#2B231D]/50 text-[#C6C0B4] hover:text-white"><X className="w-5 h-5" /></button>
               </div>
               
-              <div className="p-6 space-y-6">
-                <div>
-                  <h4 className="font-semibold text-sm uppercase tracking-wider mb-3 text-gray-400">Ice Level</h4>
-                  <div className="grid grid-cols-3 gap-2">
-                    {['Less Ice', 'Normal', 'Extra Ice'].map(level => (
-                      <button
-                        key={level}
-                        onClick={() => setIceLevel(level)}
-                        className={`py-2 px-1 rounded-lg text-xs font-medium transition-colors border ${iceLevel === level ? 'bg-[var(--color-brand-accent)]/20 text-[var(--color-brand-accent)] border-[var(--color-brand-accent)]/50' : 'bg-background border-white/10 text-gray-400 hover:bg-white/5'}`}
-                      >
-                        {level}
-                      </button>
-                    ))}
+              <div className="p-6 space-y-6 bg-[#141210]/40">
+                {selectedItemForMod.modifierOptions?.iceLevels && selectedItemForMod.modifierOptions.iceLevels.length > 0 && (
+                  <div>
+                    <h4 className="font-bold text-[#ECE6DD] uppercase tracking-wider mb-2.5">1. Ice Level Calibration</h4>
+                    <div className="grid grid-cols-3 gap-2.5">
+                      {selectedItemForMod.modifierOptions.iceLevels.map(level => (
+                        <button
+                          key={level.name}
+                          onClick={() => setIceLevel(level.name)}
+                          className={`py-3 px-2 rounded-xl text-xs font-bold transition-all border ${
+                            iceLevel === level.name 
+                              ? 'bg-[#E5A93C]/20 text-[#E5A93C] border-[#E5A93C]/60 shadow-[0_0_15px_rgba(245,158,11,0.2)]' 
+                              : 'bg-[#1E1A17] border-[#E5A93C]/20 text-[#C6C0B4] hover:border-[#E5A93C]/30'
+                          }`}
+                        >
+                          {level.name} {level.upcharge > 0 ? `(+${level.upcharge / 1000}k)` : ''}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
-                <div>
-                  <h4 className="font-semibold text-sm uppercase tracking-wider mb-3 text-gray-400">Sugar Level</h4>
-                  <div className="grid grid-cols-3 gap-2">
-                    {['Less Sugar', 'Normal', 'Extra Sugar'].map(level => (
-                      <button
-                        key={level}
-                        onClick={() => setSugarLevel(level)}
-                        className={`py-2 px-1 rounded-lg text-xs font-medium transition-colors border ${sugarLevel === level ? 'bg-[var(--color-brand-accent)]/20 text-[var(--color-brand-accent)] border-[var(--color-brand-accent)]/50' : 'bg-background border-white/10 text-gray-400 hover:bg-white/5'}`}
-                      >
-                        {level}
-                      </button>
-                    ))}
+                {selectedItemForMod.modifierOptions?.sugarLevels && selectedItemForMod.modifierOptions.sugarLevels.length > 0 && (
+                  <div>
+                    <h4 className="font-bold text-[#ECE6DD] uppercase tracking-wider mb-2.5">2. Sugar Level Calibration</h4>
+                    <div className="grid grid-cols-3 gap-2.5">
+                      {selectedItemForMod.modifierOptions.sugarLevels.map(level => (
+                        <button
+                          key={level.name}
+                          onClick={() => setSugarLevel(level.name)}
+                          className={`py-3 px-2 rounded-xl text-xs font-bold transition-all border ${
+                            sugarLevel === level.name 
+                              ? 'bg-[#E5A93C]/20 text-[#E5A93C] border-[#E5A93C]/60 shadow-[0_0_15px_rgba(245,158,11,0.2)]' 
+                              : 'bg-[#1E1A17] border-[#E5A93C]/20 text-[#C6C0B4] hover:border-[#E5A93C]/30'
+                          }`}
+                        >
+                          {level.name} {level.upcharge > 0 ? `(+${level.upcharge / 1000}k)` : ''}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
-                <div>
-                  <h4 className="font-semibold text-sm uppercase tracking-wider mb-3 text-gray-400">Milk Type</h4>
-                  <div className="grid grid-cols-1 gap-2">
-                    {['Fresh Milk', 'Oat Milk (+10k)', 'Almond Milk (+12k)'].map(milk => (
-                      <button
-                        key={milk}
-                        onClick={() => setMilkType(milk)}
-                        className={`py-3 px-4 rounded-lg text-sm font-medium transition-colors border text-left ${milkType === milk ? 'bg-[var(--color-brand-accent)]/20 text-[var(--color-brand-accent)] border-[var(--color-brand-accent)]/50' : 'bg-background border-white/10 text-gray-400 hover:bg-white/5'}`}
-                      >
-                        {milk}
-                      </button>
-                    ))}
+                {selectedItemForMod.modifierOptions?.milkTypes && selectedItemForMod.modifierOptions.milkTypes.length > 0 && (
+                  <div>
+                    <h4 className="font-bold text-[#ECE6DD] uppercase tracking-wider mb-2.5">3. Artisanal Dairy Option</h4>
+                    <div className="grid grid-cols-1 gap-2.5">
+                      {selectedItemForMod.modifierOptions.milkTypes.map(milk => (
+                        <button
+                          key={milk.name}
+                          onClick={() => setMilkType(milk.name)}
+                          className={`py-3.5 px-4 rounded-xl text-xs font-bold transition-all border text-left flex justify-between ${
+                            milkType === milk.name 
+                              ? 'bg-[#E5A93C]/20 text-[#E5A93C] border-[#E5A93C]/60 shadow-[0_0_15px_rgba(245,158,11,0.2)]' 
+                              : 'bg-[#1E1A17] border-[#E5A93C]/20 text-[#C6C0B4] hover:border-[#E5A93C]/30'
+                          }`}
+                        >
+                          <span>{milk.name}</span>
+                          {milk.upcharge > 0 && <span className="text-[#E5A93C]">(+{milk.upcharge / 1000}k)</span>}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
-              <div className="p-4 bg-white/5 border-t border-white/10">
+              <div className="p-6 bg-[#141210] border-t border-[#E5A93C]/20/80 font-sans">
                 <Button 
                   variant="luxury" 
-                  className="w-full py-5"
+                  className="w-full py-5 text-sm font-bold gap-2"
                   onClick={() => addToCart(selectedItemForMod, { iceLevel, sugarLevel, milkType })}
                 >
-                  Confirm & Add
+                  <Plus className="w-4 h-4 stroke-[3]" />
+                  <span>Confirm & Add for Rp {currentTotal.toLocaleString('id-ID')}</span>
                 </Button>
               </div>
             </motion.div>
           </div>
-        )}
+          );
+        })()}
       </AnimatePresence>
 
       {/* Checkout Modal */}
       <AnimatePresence>
         {showCheckout && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 font-sans">
             <motion.div 
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-background rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl border border-white/10"
+              initial={{ scale: 0.95, opacity: 0, y: 15 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 15 }}
+              className="card-luxury bg-[#1E1A17] border border-[#E5A93C]/20 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl text-[#FFFFFF] font-mono text-xs"
             >
-              <div className="p-6 border-b border-white/10 flex justify-between items-center">
-                <h2 className="text-xl font-semibold">Payment</h2>
-                <button onClick={() => setShowCheckout(false)} className="text-gray-400 hover:text-white"><X className="w-5 h-5" /></button>
+              <div className="p-6 border-b border-[#E5A93C]/20/80 flex justify-between items-center bg-[#141210]/80 font-heading font-extrabold text-lg text-white">
+                <span>Station Payment Gateway</span>
+                <button onClick={() => setShowCheckout(false)} className="p-2 rounded-xl bg-[#2B231D]/50 text-[#C6C0B4] hover:text-white"><X className="w-5 h-5" /></button>
               </div>
               
-              <div className="p-6">
-                <div className="text-center mb-8">
-                  <p className="text-gray-400 text-sm mb-1">Total Due</p>
-                  <p className="text-4xl font-semibold text-[var(--color-brand-accent)]">Rp {total.toLocaleString('id-ID')}</p>
+              <div className="p-6 space-y-6 bg-[#141210]/40">
+                <div className="text-center p-6 rounded-2xl bg-[#E5A93C]/10 border border-[#E5A93C]/30 shadow-[0_0_20px_rgba(245,158,11,0.15)]">
+                  <p className="text-[#C6C0B4] uppercase tracking-widest font-bold mb-1">Total Amount Payable</p>
+                  <p className="text-4xl font-extrabold text-[#E5A93C]">Rp {total.toLocaleString('id-ID')}</p>
                 </div>
 
-                <div className="grid grid-cols-3 gap-4 mb-8">
+                <div className="grid grid-cols-3 gap-3">
                   <button
                     onClick={() => setPaymentMethod('qris')}
-                    className={`flex flex-col items-center justify-center gap-3 p-4 rounded-xl border transition-colors ${paymentMethod === 'qris' ? 'bg-[var(--color-brand-accent)]/10 border-[var(--color-brand-accent)] text-white' : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}`}
+                    className={`flex flex-col items-center justify-center gap-2.5 p-4 rounded-2xl border transition-all font-bold ${
+                      paymentMethod === 'qris' 
+                        ? 'bg-[#E5A93C]/20 border-[#E5A93C]/60 text-[#E5A93C] shadow-[0_0_15px_rgba(245,158,11,0.2)]' 
+                        : 'bg-[#1E1A17] border-[#E5A93C]/20 text-[#C6C0B4] hover:border-[#E5A93C]/30'
+                    }`}
                   >
-                    <QrCode className="w-8 h-8" />
-                    <span className="text-sm font-medium">QRIS</span>
+                    <QrCode className="w-7 h-7" />
+                    <span>QRIS Scan</span>
                   </button>
                   <button
                     onClick={() => setPaymentMethod('card')}
-                    className={`flex flex-col items-center justify-center gap-3 p-4 rounded-xl border transition-colors ${paymentMethod === 'card' ? 'bg-[var(--color-brand-accent)]/10 border-[var(--color-brand-accent)] text-white' : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}`}
+                    className={`flex flex-col items-center justify-center gap-2.5 p-4 rounded-2xl border transition-all font-bold ${
+                      paymentMethod === 'card' 
+                        ? 'bg-[#E5A93C]/20 border-[#E5A93C]/60 text-[#E5A93C] shadow-[0_0_15px_rgba(245,158,11,0.2)]' 
+                        : 'bg-[#1E1A17] border-[#E5A93C]/20 text-[#C6C0B4] hover:border-[#E5A93C]/30'
+                    }`}
                   >
-                    <CreditCard className="w-8 h-8" />
-                    <span className="text-sm font-medium">Card</span>
+                    <CreditCard className="w-7 h-7" />
+                    <span>Card / EDC</span>
                   </button>
                   <button
                     onClick={() => setPaymentMethod('cash')}
-                    className={`flex flex-col items-center justify-center gap-3 p-4 rounded-xl border transition-colors ${paymentMethod === 'cash' ? 'bg-[var(--color-brand-accent)]/10 border-[var(--color-brand-accent)] text-white' : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}`}
+                    className={`flex flex-col items-center justify-center gap-2.5 p-4 rounded-2xl border transition-all font-bold ${
+                      paymentMethod === 'cash' 
+                        ? 'bg-[#E5A93C]/20 border-[#E5A93C]/60 text-[#E5A93C] shadow-[0_0_15px_rgba(245,158,11,0.2)]' 
+                        : 'bg-[#1E1A17] border-[#E5A93C]/20 text-[#C6C0B4] hover:border-[#E5A93C]/30'
+                    }`}
                   >
-                    <Banknote className="w-8 h-8" />
-                    <span className="text-sm font-medium">Cash</span>
+                    <Banknote className="w-7 h-7" />
+                    <span>Cash Settlement</span>
                   </button>
                 </div>
 
                 {paymentMethod === 'cash' && (
-                  <div>
-                    <p className="text-sm text-gray-400 mb-2 font-medium">Amount Received</p>
+                  <div className="space-y-2 bg-[#1E1A17] p-4 rounded-2xl border border-[#E5A93C]/20">
+                    <label className="block text-[#ECE6DD] font-bold uppercase tracking-wider">Amount Received from Patron</label>
                     <input 
                       type="number"
                       value={amountPaidInput}
                       onChange={(e) => setAmountPaidInput(e.target.value)}
-                      placeholder={`Total: Rp ${total.toLocaleString('id-ID')}`}
-                      className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-white text-sm focus:border-[var(--color-brand-accent)] focus:outline-none"
+                      placeholder={`Enter amount (Min: Rp ${total.toLocaleString('id-ID')})`}
+                      className="input-luxury w-full bg-[#141210] border border-[#E5A93C]/30 focus:border-[#E5A93C] rounded-xl p-3 text-white font-mono text-sm"
                     />
                     {amountPaidInput && parseInt(amountPaidInput) >= total && (
-                      <p className="text-xs text-green-400 mt-2">Change: Rp {(parseInt(amountPaidInput) - total).toLocaleString('id-ID')}</p>
+                      <div className="pt-2 flex justify-between text-emerald-400 font-bold text-sm">
+                        <span>Change Due:</span>
+                        <span>Rp {(parseInt(amountPaidInput) - total).toLocaleString('id-ID')}</span>
+                      </div>
                     )}
                   </div>
                 )}
                 {paymentMethod === 'qris' && (
-                  <div className="mb-8 flex flex-col items-center justify-center py-4 bg-white/5 rounded-xl border border-white/10 border-dashed">
-                    <QrCode className="w-24 h-24 text-gray-500 mb-2" />
-                    <p className="text-sm text-gray-400">Waiting for customer scan...</p>
+                  <div className="flex flex-col items-center justify-center py-6 bg-[#1E1A17]/80 rounded-2xl border border-[#E5A93C]/20 border-dashed space-y-2">
+                    <div className="p-3 bg-white rounded-xl shadow-md">
+                      <QrCode className="w-24 h-24 text-zinc-950" />
+                    </div>
+                    <p className="text-[#C6C0B4] font-bold">Waiting for QRIS scan confirmation...</p>
+                    <p className="text-[10px] text-zinc-600">Dynamic QR generated by Cafein Today Gateway</p>
                   </div>
                 )}
 
-                <Button variant="luxury" className="w-full py-6 text-lg" onClick={handleCheckout}>
-                  Complete Payment
-                </Button>
+                <div className="pt-2 font-sans">
+                  <Button variant="luxury" className="w-full py-6 text-sm font-bold gap-2" onClick={handleCheckout}>
+                    <Shield className="w-4 h-4" />
+                    <span>Authorize Station Transaction</span>
+                  </Button>
+                </div>
               </div>
             </motion.div>
           </div>
@@ -661,32 +761,36 @@ export default function POSPage() {
       {/* Receipt Modal */}
       <AnimatePresence>
         {completedOrder && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 font-mono">
             <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white text-black rounded-lg p-8 max-w-sm w-full shadow-2xl flex flex-col font-mono relative"
+              initial={{ scale: 0.9, opacity: 0, y: 15 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 15 }}
+              className="bg-[#141210] text-[#FFFFFF] rounded-3xl p-8 max-w-sm w-full shadow-2xl flex flex-col relative border border-[#E5A93C]/20 text-xs"
             >
-              <div className="text-center border-b-2 border-dashed border-gray-300 pb-4 mb-4">
-                <h2 className="text-xl font-bold uppercase tracking-widest mb-1">Cafein Today</h2>
-                <p className="text-xs text-gray-500">Jl. Siliwangi No. 123, Bandung</p>
-                <p className="text-xs text-gray-500">{completedOrder.date}</p>
-                <div className="mt-3">
-                  <p className="font-bold text-sm uppercase">{completedOrder.orderNumber}</p>
-                  <p className="text-sm font-semibold">{completedOrder.orderType} {completedOrder.tableId ? `- Table ${completedOrder.tableId}` : ''}</p>
+              <div className="text-center border-b border-dashed border-[#E5A93C]/20 pb-5 mb-5 space-y-1">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#E5A93C]/20 text-[#E5A93C] border border-[#E5A93C]/30 font-bold text-[10px] mb-2">
+                  <Coffee className="w-3 h-3" />
+                  <span>Official Resort Ledger</span>
+                </div>
+                <h2 className="text-lg font-heading font-extrabold uppercase tracking-widest text-white">Cafein Today</h2>
+                <p className="text-[#C6C0B4] text-[10px]">Jl. Siliwangi No. 123, Bandung • Sanctuary v2</p>
+                <p className="text-[#C6C0B4] text-[10px]">{completedOrder.date}</p>
+                <div className="pt-2 mt-2 border-t border-zinc-900 flex justify-between font-bold text-[#E5A93C]">
+                  <span>{completedOrder.orderNumber}</span>
+                  <span>{completedOrder.orderType} {completedOrder.tableId ? `(T-${completedOrder.tableId})` : ''}</span>
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto mb-4 min-h-[150px]">
+              <div className="flex-1 overflow-y-auto mb-5 min-h-[140px] space-y-3 custom-scrollbar">
                 {completedOrder.cart.map((item: CartItem) => (
-                  <div key={item.id} className="mb-3 text-sm">
-                    <div className="flex justify-between font-semibold">
-                      <span>{item.quantity}x {item.menuItem.name}</span>
-                      <span>{(item.menuItem.price * item.quantity).toLocaleString('id-ID')}</span>
+                  <div key={item.id} className="space-y-0.5">
+                    <div className="flex justify-between font-bold text-white">
+                      <span className="truncate pr-2">{item.quantity}x {item.menuItem.name}</span>
+                      <span className="text-[#E5A93C] shrink-0">Rp {(getCartItemPrice(item) * item.quantity).toLocaleString('id-ID')}</span>
                     </div>
                     {item.modifiers && (
-                      <div className="text-xs text-gray-500 ml-5 leading-tight">
+                      <div className="text-[10px] text-[#C6C0B4] ml-4 leading-tight">
                         {item.modifiers.iceLevel}, {item.modifiers.sugarLevel}, {item.modifiers.milkType}
                       </div>
                     )}
@@ -694,51 +798,50 @@ export default function POSPage() {
                 ))}
               </div>
 
-              <div className="border-t-2 border-dashed border-gray-300 pt-4 mb-6 text-sm">
-                <div className="flex justify-between mb-1">
+              <div className="border-t border-dashed border-[#E5A93C]/20 pt-4 mb-6 space-y-1.5 text-[#C6C0B4]">
+                <div className="flex justify-between">
                   <span>Subtotal</span>
                   <span>Rp {completedOrder.subtotal.toLocaleString('id-ID')}</span>
                 </div>
                 {completedOrder.discountTotal > 0 && (
-                  <div className="flex justify-between mb-1 text-red-500">
-                    <span>Discount</span>
+                  <div className="flex justify-between text-rose-400 font-bold">
+                    <span>Discount Allocation</span>
                     <span>-Rp {completedOrder.discountTotal.toLocaleString('id-ID')}</span>
                   </div>
                 )}
-                <div className="flex justify-between mb-1">
-                  <span>Tax (11%)</span>
+                <div className="flex justify-between">
+                  <span>Resort Tax (11%)</span>
                   <span>Rp {completedOrder.tax.toLocaleString('id-ID')}</span>
                 </div>
-                <div className="flex justify-between font-bold text-base mt-2">
-                  <span>Total</span>
-                  <span>Rp {completedOrder.total.toLocaleString('id-ID')}</span>
+                <div className="flex justify-between font-extrabold text-sm pt-2 mt-1 border-t border-zinc-900 text-white">
+                  <span>Total Settled</span>
+                  <span className="text-[#E5A93C]">Rp {completedOrder.total.toLocaleString('id-ID')}</span>
                 </div>
-                <div className="flex justify-between mt-4 text-gray-500 text-xs uppercase">
-                  <span>Payment Method</span>
-                  <span>{completedOrder.paymentMethod}</span>
+                <div className="flex justify-between pt-3 text-[10px] uppercase text-[#C6C0B4]">
+                  <span>Payment Gateway</span>
+                  <span className="text-[#ECE6DD] font-bold">{completedOrder.paymentMethod}</span>
                 </div>
-                <div className="flex justify-between text-gray-500 text-xs uppercase mt-1">
-                  <span>Amount Paid</span>
-                  <span>Rp {completedOrder.amountPaid?.toLocaleString('id-ID')}</span>
+                <div className="flex justify-between text-[10px] uppercase text-[#C6C0B4]">
+                  <span>Amount Received</span>
+                  <span className="text-[#ECE6DD]">Rp {completedOrder.amountPaid?.toLocaleString('id-ID')}</span>
                 </div>
                 {completedOrder.change > 0 && (
-                  <div className="flex justify-between text-gray-500 text-xs uppercase mt-1">
-                    <span>Change</span>
+                  <div className="flex justify-between text-[10px] uppercase text-emerald-400 font-bold">
+                    <span>Change Returned</span>
                     <span>Rp {completedOrder.change?.toLocaleString('id-ID')}</span>
                   </div>
                 )}
               </div>
 
-              <div className="flex gap-3">
-                <Button variant="outline" className="flex-1 bg-gray-100 text-black border-transparent hover:bg-gray-200">
-                  Print Receipt
+              <div className="flex gap-3 font-sans">
+                <Button variant="outline" className="flex-1 py-4 font-bold text-xs" onClick={() => window.print()}>
+                  Print Ledger
                 </Button>
-                <Button className="flex-1 bg-black text-white hover:bg-gray-800" onClick={handleCloseReceipt}>
-                  New Order
+                <Button variant="luxury" className="flex-1 py-4 font-bold text-xs gap-1.5" onClick={handleCloseReceipt}>
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Next Order</span>
                 </Button>
               </div>
-              
-              <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-gray-200 via-white to-gray-200 opacity-50" style={{ clipPath: 'polygon(0 0, 5% 100%, 10% 0, 15% 100%, 20% 0, 25% 100%, 30% 0, 35% 100%, 40% 0, 45% 100%, 50% 0, 55% 100%, 60% 0, 65% 100%, 70% 0, 75% 100%, 80% 0, 85% 100%, 90% 0, 95% 100%, 100% 0)' }}></div>
             </motion.div>
           </div>
         )}
@@ -752,7 +855,7 @@ export default function POSPage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
+              className="fixed inset-0 bg-black/80 backdrop-blur-md z-40"
               onClick={() => setShowHistory(false)}
             />
             <motion.div
@@ -760,42 +863,44 @@ export default function POSPage() {
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed inset-y-0 right-0 w-full max-w-md bg-background border-l border-white/10 z-50 flex flex-col shadow-2xl"
+              className="fixed inset-y-0 right-0 w-full max-w-md bg-[#141210] border-l border-[#E5A93C]/20 z-50 flex flex-col shadow-2xl text-[#FFFFFF] font-mono text-xs"
             >
-              <div className="p-6 border-b border-white/10 flex justify-between items-center bg-white/5">
+              <div className="p-6 border-b border-[#E5A93C]/20/80 flex justify-between items-center bg-[#1E1A17]/80">
                 <div>
-                  <h2 className="text-xl font-heading font-semibold text-white">Today&apos;s History</h2>
-                  <p className="text-sm text-gray-400">POS transactions</p>
+                  <div className="flex items-center gap-2">
+                    <History className="w-4 h-4 text-[#E5A93C]" />
+                    <h2 className="text-lg font-heading font-extrabold text-white">Today&apos;s POS Ledger</h2>
+                  </div>
+                  <p className="text-[10px] text-[#C6C0B4] uppercase tracking-widest mt-0.5">Station Transaction History</p>
                 </div>
-                <button onClick={() => setShowHistory(false)} className="p-2 text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-full transition-colors">
-                  <X className="w-5 h-5" />
-                </button>
+                <button onClick={() => setShowHistory(false)} className="p-2 text-[#C6C0B4] hover:text-white bg-[#2B231D]/50 rounded-xl transition-all"><X className="w-5 h-5" /></button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              <div className="flex-1 overflow-y-auto p-6 space-y-3 custom-scrollbar bg-[#141210]/40">
                 {todayOrders.length === 0 ? (
-                  <div className="text-center py-12 text-gray-500">
-                    <p>No orders processed today yet.</p>
+                  <div className="text-center py-20 text-zinc-600 space-y-2 border border-dashed border-[#E5A93C]/20 rounded-2xl p-6">
+                    <Coffee className="w-10 h-10 text-zinc-700 mx-auto stroke-[1.5]" />
+                    <p className="font-semibold text-[#C6C0B4]">No transactions recorded today</p>
                   </div>
                 ) : (
                   todayOrders.map((order) => (
                     <div
                       key={order.id}
-                      className="w-full text-left bg-white/5 border border-white/10 p-4 rounded-xl"
+                      className="card-luxury bg-[#1E1A17]/70 border border-[#E5A93C]/20/80 p-4 rounded-2xl space-y-2 hover:border-[#E5A93C]/30 transition-all"
                     >
-                      <div className="flex justify-between items-start mb-2">
-                        <span className="font-semibold text-white">
-                          {order.orderNumber}
+                      <div className="flex justify-between items-start">
+                        <span className="font-bold text-white text-sm">
+                          #{order.orderNumber}
                         </span>
-                        <span className="text-xs text-gray-500">{new Date(order.createdAt).toLocaleTimeString()}</span>
+                        <span className="text-[10px] text-[#C6C0B4]">{new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
-                      <div className="flex justify-between items-center text-sm">
-                        <span className="text-gray-400">{order.orderType === 'dine_in' ? 'Dine In' : 'Takeaway'} {order.tableNumber ? `(${order.tableNumber})` : ''}</span>
-                        <span className="text-[var(--color-brand-accent)] font-medium">Rp {order.totalAmount.toLocaleString('id-ID')}</span>
+                      <div className="flex justify-between items-center">
+                        <span className="text-[#C6C0B4] font-bold">{order.orderType === 'dine_in' ? 'Dine In' : 'TakeawayCounter'} {order.tableNumber ? `(T-${order.tableNumber})` : ''}</span>
+                        <span className="text-[#E5A93C] font-extrabold text-sm">Rp {order.totalAmount.toLocaleString('id-ID')}</span>
                       </div>
-                      <div className="mt-3 flex gap-2">
-                        <span className="px-2 py-1 bg-white/10 text-xs rounded-md text-gray-300 uppercase">{order.paymentMethod}</span>
-                        <span className="px-2 py-1 bg-green-500/20 text-green-400 border border-green-500/20 text-xs rounded-md uppercase">{order.status}</span>
+                      <div className="pt-2 border-t border-[#E5A93C]/20/60 flex items-center justify-between">
+                        <span className="px-2 py-0.5 bg-[#141210] text-[10px] rounded border border-[#E5A93C]/20 text-[#C6C0B4] uppercase font-bold">{order.paymentMethod}</span>
+                        <span className="px-2 py-0.5 bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] rounded uppercase font-bold">● {order.status}</span>
                       </div>
                     </div>
                   ))

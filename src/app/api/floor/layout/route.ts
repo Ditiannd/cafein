@@ -157,15 +157,19 @@ export async function PUT(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { tables: updatedTables, layoutObjects: updatedObjects, canvasSettings } = body;
+    const { tables: updatedTables, layoutObjects: updatedObjects, canvasSettings, defaultViewportX, defaultViewportY, defaultViewportZoom } = body;
 
     const activeLayout = await getOrCreateActiveLayoutVersion();
 
-    if (canvasSettings) {
-      await db.update(layoutVersions)
-        .set({ canvasSettings: typeof canvasSettings === 'string' ? canvasSettings : JSON.stringify(canvasSettings), updatedAt: new Date() })
-        .where(eq(layoutVersions.id, activeLayout.id));
-    }
+    const updateData: any = { updatedAt: new Date() };
+    if (canvasSettings !== undefined) updateData.canvasSettings = typeof canvasSettings === 'string' ? canvasSettings : JSON.stringify(canvasSettings);
+    if (defaultViewportX !== undefined) updateData.defaultViewportX = defaultViewportX;
+    if (defaultViewportY !== undefined) updateData.defaultViewportY = defaultViewportY;
+    if (defaultViewportZoom !== undefined) updateData.defaultViewportZoom = defaultViewportZoom;
+    
+    await db.update(layoutVersions)
+      .set(updateData)
+      .where(eq(layoutVersions.id, activeLayout.id));
 
     // Update tables
     if (Array.isArray(updatedTables)) {

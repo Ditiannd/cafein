@@ -5,9 +5,8 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 import { 
   Circle, RectangleHorizontal, Sofa, Square, Clock, Users, Calendar, 
-  CheckCircle2, AlertCircle, ShoppingBag, Sparkles, Utensils, Coffee, Box, Disc, QrCode, X
+  CheckCircle2, AlertCircle, ShoppingBag, Sparkles, Utensils, Coffee, Box, Disc
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { api, TableItem, LayoutObjectItem, LayoutVersion, TableShape, StaticObjectType, TableStatus } from '@/lib/api';
 
 const SHAPE_ICONS: Record<TableShape, any> = {
@@ -37,9 +36,9 @@ const OBJECT_ICONS: Record<StaticObjectType, any> = {
 
 const STATUS_COLORS: Record<TableStatus, { bg: string; border: string; text: string; label: string }> = {
   available: { bg: 'bg-emerald-500/20', border: 'border-emerald-500', text: 'text-emerald-400', label: 'Available' },
-  reserved: { bg: 'bg-amber-500/20', border: 'border-amber-500', text: 'text-amber-400', label: 'Reserved' },
+  reserved: { bg: 'bg-[#E5A93C]/20', border: 'border-[#E5A93C]', text: 'text-[#F0BA53]', label: 'Reserved' },
   occupied: { bg: 'bg-rose-500/20', border: 'border-rose-500', text: 'text-rose-400', label: 'Occupied' },
-  cleaning: { bg: 'bg-sky-500/20', border: 'border-sky-500', text: 'text-sky-400', label: 'Cleaning' },
+  cleaning: { bg: 'bg-sky-500/20', border: 'border-sky-500', text: 'text-sky-400', label: 'Restoring' },
   out_of_service: { bg: 'bg-zinc-800/60', border: 'border-zinc-700', text: 'text-zinc-500', label: 'Unavailable' },
 };
 
@@ -54,9 +53,22 @@ export function InteractiveFloorPlanMock() {
   const [activeMode, setActiveMode] = useState<'info' | 'book'>('info');
   const [bookingDate, setBookingDate] = useState(() => {
     const today = new Date();
-    return today.toISOString().split('T')[0];
+    if (today.getHours() >= 22) {
+      today.setDate(today.getDate() + 1);
+    }
+    // Convert to local date string instead of ISO to avoid timezone shifts
+    const offset = today.getTimezoneOffset();
+    const localToday = new Date(today.getTime() - (offset * 60 * 1000));
+    return localToday.toISOString().split('T')[0];
   });
-  const [bookingTime, setBookingTime] = useState('14:00');
+  const [bookingTime, setBookingTime] = useState(() => {
+    const today = new Date();
+    let hours = today.getHours() + 1;
+    if (hours < 8 || hours >= 22) {
+      hours = 8;
+    }
+    return `${hours.toString().padStart(2, '0')}:00`;
+  });
   const [guestCount, setGuestCount] = useState(2);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -67,20 +79,79 @@ export function InteractiveFloorPlanMock() {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.8);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isNormalizing, setIsNormalizing] = useState(true);
 
-  // Responsive Scaling
+  // --- Responsive Scale & Viewport Calculation ---
   useEffect(() => {
-    const updateScale = () => {
+    if (!layoutVersion || loading) return;
+    const normalizeViewport = () => {
       if (containerRef.current) {
-        const { width } = containerRef.current.getBoundingClientRect();
-        const nextScale = Math.min(width / 1200, 1.1);
-        setScale(Math.max(nextScale, 0.45));
+        const { width, height } = containerRef.current.getBoundingClientRect();
+        
+        // 1. Check if admin explicitly set a default viewport
+        if (layoutVersion.defaultViewportZoom != null && layoutVersion.defaultViewportX != null && layoutVersion.defaultViewportY != null) {
+          setScale(layoutVersion.defaultViewportZoom);
+          setPan({ x: layoutVersion.defaultViewportX, y: layoutVersion.defaultViewportY });
+          setIsNormalizing(false);
+          return;
+        }
+
+        // 2. Fit-to-screen fallback
+        if (tables.length === 0 && layoutObjects.length === 0) {
+          setScale(1);
+          setPan({ x: 0, y: 0 });
+          setIsNormalizing(false);
+          return;
+        }
+
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        
+        tables.forEach(t => {
+          if (t.x < minX) minX = t.x;
+          if (t.y < minY) minY = t.y;
+          if (t.x + t.width > maxX) maxX = t.x + t.width;
+          if (t.y + t.height > maxY) maxY = t.y + t.height;
+        });
+
+        layoutObjects.forEach(o => {
+          if (o.x < minX) minX = o.x;
+          if (o.y < minY) minY = o.y;
+          if (o.x + o.width > maxX) maxX = o.x + o.width;
+          if (o.y + o.height > maxY) maxY = o.y + o.height;
+        });
+
+        // Add padding
+        const padding = 100;
+        minX -= padding;
+        minY -= padding;
+        maxX += padding;
+        maxY += padding;
+
+        const contentWidth = maxX - minX;
+        const contentHeight = maxY - minY;
+
+        // Calculate scale to fit container
+        const scaleX = width / contentWidth;
+        const scaleY = height / contentHeight;
+        const newScale = Math.min(scaleX, scaleY, 1.2); // Cap max scale
+
+        // Calculate pan to center the content
+        const scaledContentWidth = contentWidth * newScale;
+        const scaledContentHeight = contentHeight * newScale;
+        
+        const newPanX = (width - scaledContentWidth) / 2 - (minX * newScale);
+        const newPanY = (height - scaledContentHeight) / 2 - (minY * newScale);
+
+        setScale(newScale);
+        setPan({ x: newPanX, y: newPanY });
+        setIsNormalizing(false);
       }
     };
-    updateScale();
-    window.addEventListener('resize', updateScale);
-    return () => window.removeEventListener('resize', updateScale);
-  }, []);
+    normalizeViewport();
+    window.addEventListener('resize', normalizeViewport);
+    return () => window.removeEventListener('resize', normalizeViewport);
+  }, [layoutVersion, tables, layoutObjects, loading]);
 
   // Fetch Live Canonical Layout
   const fetchLayout = useCallback(async (isSilent = false) => {
@@ -106,13 +177,21 @@ export function InteractiveFloorPlanMock() {
   const selectedTable = tables.find(t => t.id === selectedTableId);
 
   // When table selection changes, reset form default guests to table capacity
+  const prevTableIdRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (selectedTable) {
-      setGuestCount(Math.min(selectedTable.capacity, 10));
-      setActiveMode('info');
-      setErrorMsg(null);
+    if (selectedTableId !== prevTableIdRef.current) {
+      prevTableIdRef.current = selectedTableId;
+      if (selectedTableId) {
+        const table = tables.find(t => t.id === selectedTableId);
+        if (table) {
+          setGuestCount(Math.min(table.capacity, 10));
+        }
+        setActiveMode('info');
+        setErrorMsg(null);
+      }
     }
-  }, [selectedTableId]);
+  }, [selectedTableId, tables]);
 
   // --- Validate and Submit Booking ---
   const handleBookingSubmit = async (e: React.FormEvent) => {
@@ -130,9 +209,9 @@ export function InteractiveFloorPlanMock() {
     }
 
     // Business hours check: 08:00 to 22:00
-    const [hours, minutes] = bookingTime.split(':').map(Number);
+    const [hours] = bookingTime.split(':').map(Number);
     if (hours < 8 || hours >= 22) {
-      setErrorMsg('Reservations are only available during business hours (08:00 - 22:00).');
+      setErrorMsg('Reservations are only available during sanctuary service hours (08:00 - 22:00).');
       return;
     }
 
@@ -159,61 +238,62 @@ export function InteractiveFloorPlanMock() {
       await fetchLayout(true);
     } catch (err: any) {
       console.error('Reservation error:', err);
-      setErrorMsg(err.message || 'This table is already booked for the selected time slot. Please choose another table or time.');
+      setErrorMsg(err.message || 'This table is already reserved for the selected time slot. Please choose another table or time.');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="flex flex-col lg:flex-row gap-8 w-full min-h-[550px] text-zinc-100 font-sans select-none">
+    <div className="flex-1 flex flex-col lg:flex-row gap-5 w-full min-h-[550px] text-[#FDFBF7] font-sans select-none">
       
       {/* Left Canvas Area */}
       <div 
         ref={containerRef}
-        className="flex-1 bg-zinc-950/80 rounded-3xl border border-zinc-800/80 p-6 relative overflow-hidden flex flex-col items-center justify-center shadow-2xl backdrop-blur-xl min-h-[480px]"
+        className="flex-1 bg-[#141210]/90 rounded-3xl border border-white/15 p-6 relative overflow-hidden flex flex-col items-center justify-center shadow-[0_20px_50px_rgba(0,0,0,0.8)] backdrop-blur-2xl min-h-[480px]"
       >
         <div className="absolute top-4 left-6 z-10 flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
-          <h3 className="text-sm font-bold text-white tracking-tight flex items-center gap-2">
-            Canonical Table Layout <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-mono">LIVE SYNC</span>
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_10px_rgba(52,211,153,0.5)]" />
+          <h3 className="text-sm font-heading font-bold text-[#FFFFFF] tracking-tight flex items-center gap-2 drop-shadow-sm">
+            Sanctuary Floor Geometry <span className="text-[10px] bg-[#E5A93C]/25 text-[#F0BA53] border border-[#E5A93C]/40 px-2 py-0.5 rounded font-sans font-bold shadow-sm">Live Sanctuary</span>
           </h3>
         </div>
 
         {/* Live Legend */}
-        <div className="absolute top-4 right-6 z-10 hidden sm:flex items-center gap-3 bg-zinc-900/90 px-3 py-1.5 rounded-xl border border-zinc-800 text-[11px] font-semibold">
+        <div className="absolute top-4 right-6 z-10 hidden sm:flex items-center gap-3 bg-[#241E19]/80 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-white/15 text-xs font-bold shadow-sm">
           <div className="flex items-center gap-1.5 text-emerald-400">
-            <span className="w-2 h-2 rounded-full bg-emerald-400" />
+            <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]" />
             <span>Available</span>
           </div>
-          <div className="flex items-center gap-1.5 text-amber-400">
-            <span className="w-2 h-2 rounded-full bg-amber-400" />
+          <div className="flex items-center gap-1.5 text-[#F0BA53]">
+            <span className="w-2 h-2 rounded-full bg-[#E5A93C] shadow-[0_0_8px_rgba(229,169,60,0.5)]" />
             <span>Reserved</span>
           </div>
           <div className="flex items-center gap-1.5 text-rose-400">
-            <span className="w-2 h-2 rounded-full bg-rose-500" />
+            <span className="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]" />
             <span>Occupied</span>
           </div>
         </div>
 
         {loading && tables.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-3 text-zinc-400 py-20">
-            <div className="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
-            <p className="text-sm font-medium">Loading live table layout...</p>
+          <div className="flex flex-col items-center justify-center gap-3 text-[#C6C0B4] py-20">
+            <div className="w-10 h-10 border-4 border-[#E5A93C] border-t-transparent rounded-full animate-spin" />
+            <p className="text-sm font-normal">Loading sanctuary seating geometry...</p>
           </div>
         ) : (
           /* Scaled Virtual Floor Plan Viewport */
           <div
             style={{
-              width: '1200px',
-              height: '800px',
-              transform: `scale(${scale})`,
-              transformOrigin: 'center center',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`,
+              transformOrigin: '0 0',
+              opacity: isNormalizing ? 0 : 1,
             }}
-            className="relative bg-zinc-900/30 border border-zinc-800/60 rounded-3xl overflow-hidden transition-all duration-300 shadow-inner my-auto"
+            className="transition-all duration-300"
           >
-            {/* Subtle background grid */}
-            <div className="absolute inset-0 bg-[radial-gradient(circle,#27272a_1px,transparent_1px)] [background-size:24px_24px] opacity-30 pointer-events-none" />
+            {/* Subtle background grid could be rendered here but this is infinite canvas */}
 
             {/* Decorative Static Objects */}
             {layoutObjects.map((obj) => {
@@ -230,9 +310,9 @@ export function InteractiveFloorPlanMock() {
                     transform: `rotate(${obj.rotation}deg)`,
                     zIndex: obj.zIndex,
                   }}
-                  className="absolute pointer-events-none select-none rounded-xl bg-zinc-900/50 border border-zinc-800/60 flex flex-col items-center justify-center p-1 text-zinc-600"
+                  className="absolute pointer-events-none select-none rounded-xl bg-[#141210]/70 border border-white/10 flex flex-col items-center justify-center p-1 text-[#C6C0B4] backdrop-blur-sm"
                 >
-                  <Icon className="w-5 h-5 mb-0.5 opacity-40" />
+                  <Icon className="w-5 h-5 mb-0.5 opacity-60 text-[#E5A93C]" />
                   <span className="text-[10px] font-bold tracking-tight text-center truncate w-full px-1">{obj.name}</span>
                 </div>
               );
@@ -261,18 +341,18 @@ export function InteractiveFloorPlanMock() {
                   className={`absolute select-none transition-all duration-200 flex flex-col items-center justify-center p-2 border-2 cursor-pointer ${
                     table.shape === 'round' ? 'rounded-full' : table.shape === 'oval' ? 'rounded-[2.5rem]' : 'rounded-2xl'
                   } ${statusStyle.bg} ${statusStyle.border} ${
-                    isSelected ? 'ring-4 ring-amber-500 scale-110 shadow-[0_0_25px_rgba(245,158,11,0.4)] z-50' : 'hover:scale-[1.04] hover:shadow-lg'
+                    isSelected ? 'ring-4 ring-[#E5A93C] scale-110 shadow-[0_0_30px_rgba(229,169,60,0.5)] z-50 bg-[#241E19]/90' : 'hover:scale-[1.04] hover:shadow-lg'
                   } ${!isAvailable && !isSelected ? 'opacity-60 grayscale-[30%]' : ''}`}
                 >
                   {/* Status Indicator Dot */}
-                  <div className={`absolute top-2 right-2 w-2.5 h-2.5 rounded-full border border-zinc-950 ${
-                    isAvailable ? 'bg-emerald-400 animate-pulse' : table.status === 'occupied' ? 'bg-rose-500' : 'bg-amber-400'
+                  <div className={`absolute top-2 right-2 w-2.5 h-2.5 rounded-full border border-[#141210] ${
+                    isAvailable ? 'bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.5)]' : table.status === 'occupied' ? 'bg-rose-500' : 'bg-[#E5A93C]'
                   }`} />
 
                   <Icon className={`w-6 h-6 mb-1 ${statusStyle.text}`} />
-                  <span className="text-sm font-extrabold tracking-tight text-white drop-shadow truncate max-w-full px-1">{table.name}</span>
-                  <span className="text-[10px] font-mono font-bold bg-zinc-950/80 text-zinc-300 px-2 py-0.5 rounded-full mt-0.5 border border-zinc-700/50">
-                    {table.capacity} Pax
+                  <span className="text-sm font-bold tracking-tight text-[#FFFFFF] drop-shadow truncate max-w-full px-1">{table.name}</span>
+                  <span className="text-[10px] font-sans font-bold bg-[#141210]/95 text-[#ECE6DD] px-2 py-0.5 rounded-full mt-0.5 border border-white/15 shadow-sm">
+                    {table.capacity} Guests
                   </span>
                 </button>
               );
@@ -280,110 +360,113 @@ export function InteractiveFloorPlanMock() {
           </div>
         )}
 
-        <p className="text-[11px] text-zinc-500 mt-4 text-center font-mono">
-          Click any available table to reserve or order directly.
+        <p className="text-xs text-[#C6C0B4] mt-4 text-center font-normal">
+          Select any available table to reserve seating or order directly.
         </p>
       </div>
 
-      {/* Right Details & Booking Panel */}
-      <div className="w-full lg:w-96 bg-zinc-900/95 border border-zinc-800/90 rounded-3xl p-6 flex flex-col shadow-2xl backdrop-blur-xl shrink-0">
+      {/* Right Details & Booking Panel (Clearer, Warmer Hotel Glassmorphism) */}
+      <div className="w-full lg:w-96 bg-[#241E19]/65 border border-white/15 rounded-3xl p-6 flex flex-col shadow-[0_20px_50px_rgba(0,0,0,0.8)] backdrop-blur-2xl shrink-0">
         {!selectedTable ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-center p-8 text-zinc-500 gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-zinc-800/50 border border-zinc-700/50 flex items-center justify-center text-zinc-600 animate-pulse">
+          <div className="flex-1 flex flex-col items-center justify-center text-center p-8 text-[#C6C0B4] gap-4">
+            <div className="w-16 h-16 rounded-2xl bg-[#141210]/80 border border-[#E5A93C]/30 flex items-center justify-center text-[#E5A93C] animate-pulse shadow-md">
               <Utensils className="w-8 h-8" />
             </div>
-            <h3 className="text-base font-bold text-zinc-200">Select a Table</h3>
-            <p className="text-xs text-zinc-400 max-w-xs leading-relaxed">
-              Explore our live dining room floor plan and choose an available table to book your reservation or start dine-in ordering.
+            <h3 className="text-base font-bold text-[#FFFFFF] drop-shadow-sm">Select a Sanctuary Table</h3>
+            <p className="text-xs text-[#ECE6DD] max-w-xs leading-relaxed font-normal">
+              Explore our live sanctuary seating layout and choose an available table to book your reservation or start dine-in ordering.
             </p>
           </div>
         ) : (
           <div className="flex-1 flex flex-col">
             
             {/* Table Summary Header */}
-            <div className="flex items-center justify-between pb-4 border-b border-zinc-800 mb-5">
+            <div className="flex items-center justify-between pb-4 border-b border-white/15 mb-5">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                <div className="w-12 h-12 rounded-2xl bg-[#E5A93C]/20 border border-[#E5A93C]/40 flex items-center justify-center text-[#F0BA53] shadow-sm">
                   {React.createElement(SHAPE_ICONS[selectedTable.shape] || Circle, { className: "w-6 h-6" })}
                 </div>
                 <div>
-                  <h2 className="text-lg font-extrabold text-white">{selectedTable.name}</h2>
-                  <span className="text-xs text-zinc-400 font-mono capitalize">
-                    {selectedTable.capacity} Pax • {selectedTable.shape.replace('_', ' ')}
+                  <h2 className="text-lg font-bold text-[#FFFFFF] drop-shadow-sm">{selectedTable.name}</h2>
+                  <span className="text-xs text-[#C6C0B4] font-sans capitalize font-medium">
+                    {selectedTable.capacity} Guests • {selectedTable.shape.replace('_', ' ')}
                   </span>
                 </div>
               </div>
 
-              <span className={`px-2.5 py-1 rounded-full text-xs font-bold border font-mono uppercase ${
-                selectedTable.status === 'available' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' : 'bg-rose-500/20 text-rose-400 border-rose-500/40'
+              <span className={`px-3 py-1 rounded-full text-xs font-bold border font-sans shadow-sm ${
+                selectedTable.status === 'available' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
               }`}>
                 {selectedTable.status === 'available' ? 'Available' : 'Unavailable'}
               </span>
             </div>
 
             {selectedTable.status !== 'available' ? (
-              <div className="bg-rose-950/30 border border-rose-500/30 rounded-2xl p-5 text-center my-auto space-y-3">
+              <div className="bg-rose-950/40 border border-rose-500/40 rounded-2xl p-5 text-center my-auto space-y-3 shadow-inner">
                 <AlertCircle className="w-10 h-10 text-rose-400 mx-auto" />
-                <h4 className="text-sm font-bold text-white">Table Currently Unavailable</h4>
-                <p className="text-xs text-zinc-300 leading-relaxed">
-                  This table is currently marked as <span className="font-semibold text-rose-300">{selectedTable.status.replace('_', ' ')}</span> by our staff or another guest reservation.
+                <h4 className="text-sm font-bold text-[#FFFFFF]">Table Currently Reserved</h4>
+                <p className="text-xs text-[#ECE6DD] leading-relaxed font-normal">
+                  This sanctuary table is currently marked as <span className="font-bold text-rose-300">{selectedTable.status.replace('_', ' ')}</span> in our live system.
                 </p>
-                <p className="text-[11px] text-zinc-400 font-mono pt-1">
-                  Please select another green table on the layout.
+                <p className="text-xs text-[#C6C0B4] font-sans pt-1">
+                  Please select another available table on the layout.
                 </p>
               </div>
             ) : (
               <div className="flex-1 flex flex-col">
                 
                 {/* Action Mode Toggle */}
-                <div className="flex bg-zinc-950/80 p-1 rounded-xl border border-zinc-800 mb-5">
+                <div className="flex bg-[#141210]/80 p-1 rounded-xl border border-white/15 mb-5 shadow-inner">
                   <button
+                    type="button"
                     onClick={() => setActiveMode('info')}
-                    className={`flex-1 py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all ${activeMode === 'info' ? 'bg-amber-500 text-zinc-950 shadow' : 'text-zinc-400 hover:text-white'}`}
+                    className={`flex-1 py-2 text-xs font-medium rounded-lg flex items-center justify-center gap-1.5 transition-all ${activeMode === 'info' ? 'bg-gradient-to-r from-[#F0BA53] to-[#E5A93C] text-[#141210] font-bold shadow-md' : 'text-[#C6C0B4] hover:text-[#FFFFFF]'}`}
                   >
                     <ShoppingBag className="w-3.5 h-3.5" />
                     <span>Order Dine-In</span>
                   </button>
                   <button
+                    type="button"
                     onClick={() => setActiveMode('book')}
-                    className={`flex-1 py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all ${activeMode === 'book' ? 'bg-amber-500 text-zinc-950 shadow' : 'text-zinc-400 hover:text-white'}`}
+                    className={`flex-1 py-2 text-xs font-medium rounded-lg flex items-center justify-center gap-1.5 transition-all ${activeMode === 'book' ? 'bg-gradient-to-r from-[#F0BA53] to-[#E5A93C] text-[#141210] font-bold shadow-md' : 'text-[#C6C0B4] hover:text-[#FFFFFF]'}`}
                   >
                     <Calendar className="w-3.5 h-3.5" />
-                    <span>Book Table (90m)</span>
+                    <span>Reserve (90m)</span>
                   </button>
                 </div>
 
                 {activeMode === 'info' ? (
                   <div className="space-y-6 my-auto">
-                    <div className="bg-zinc-950/60 p-4 rounded-2xl border border-zinc-800/80 space-y-3 text-xs">
-                      <div className="flex justify-between text-zinc-400">
+                    <div className="bg-[#141210]/80 p-4 rounded-2xl border border-white/15 space-y-3 text-xs shadow-sm">
+                      <div className="flex justify-between text-[#C6C0B4]">
                         <span>Seating Capacity</span>
-                        <span className="text-white font-semibold">{selectedTable.capacity} Guests</span>
+                        <span className="text-[#FFFFFF] font-bold">{selectedTable.capacity} Guests</span>
                       </div>
-                      <div className="flex justify-between text-zinc-400">
+                      <div className="flex justify-between text-[#C6C0B4]">
                         <span>Table Geometry</span>
-                        <span className="text-white font-semibold capitalize">{selectedTable.shape.replace('_', ' ')}</span>
+                        <span className="text-[#FFFFFF] font-bold capitalize">{selectedTable.shape.replace('_', ' ')}</span>
                       </div>
-                      <div className="flex justify-between text-zinc-400">
-                        <span>Direct Walk-in Ordering</span>
-                        <span className="text-emerald-400 font-semibold flex items-center gap-1">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Instant QR Enabled
+                      <div className="flex justify-between text-[#C6C0B4]">
+                        <span>Sanctuary Ordering</span>
+                        <span className="text-emerald-400 font-bold flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Table Service Enabled
                         </span>
                       </div>
                     </div>
 
                     <div className="space-y-3">
                       <Link href={`/menu?tableId=${selectedTable.id}&table=${encodeURIComponent(selectedTable.name)}`} className="block">
-                        <Button className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-zinc-950 font-extrabold py-3.5 shadow-[0_0_20px_rgba(245,158,11,0.3)] gap-2">
-                          <ShoppingBag className="w-4 h-4" />
+                        <Button className="w-full bg-gradient-to-r from-[#F0BA53] via-[#FFFFFF] to-[#E5A93C] hover:opacity-95 text-[#141210] font-bold py-3.5 shadow-[0_0_25px_rgba(229,169,60,0.4)] gap-2 rounded-xl">
+                          <ShoppingBag className="w-4 h-4 text-[#141210]" />
                           <span>Order Menu for Table {selectedTable.name}</span>
                         </Button>
                       </Link>
                       <button
+                        type="button"
                         onClick={() => setActiveMode('book')}
-                        className="w-full py-2.5 text-xs text-zinc-400 hover:text-white font-semibold underline text-center transition-colors block"
+                        className="w-full py-2.5 text-xs text-[#C6C0B4] hover:text-[#FFFFFF] font-medium underline text-center transition-colors block"
                       >
-                        Want to reserve this table in advance instead?
+                        Want to reserve this seating sanctuary in advance instead?
                       </button>
                     </div>
                   </div>
@@ -392,37 +475,37 @@ export function InteractiveFloorPlanMock() {
                   <form onSubmit={handleBookingSubmit} className="space-y-4 flex-1 flex flex-col">
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="text-xs font-semibold text-zinc-400 mb-1 block">Date</label>
+                        <label className="text-xs font-bold text-[#C6C0B4] mb-1 block">Date</label>
                         <input
                           type="date"
                           required
                           min={new Date().toISOString().split('T')[0]}
                           value={bookingDate}
                           onChange={(e) => setBookingDate(e.target.value)}
-                          className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                          className="w-full bg-[#141210] border border-white/15 rounded-xl px-3 py-2 text-xs text-[#FFFFFF] focus:outline-none focus:border-[#E5A93C] shadow-sm font-medium"
                         />
                       </div>
                       <div>
-                        <label className="text-xs font-semibold text-zinc-400 mb-1 block">Time (08:00 - 22:00)</label>
+                        <label className="text-xs font-bold text-[#C6C0B4] mb-1 block">Time (08:00 - 22:00)</label>
                         <input
                           type="time"
                           required
                           value={bookingTime}
                           onChange={(e) => setBookingTime(e.target.value)}
-                          className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                          className="w-full bg-[#141210] border border-white/15 rounded-xl px-3 py-2 text-xs text-[#FFFFFF] focus:outline-none focus:border-[#E5A93C] shadow-sm font-medium"
                         />
                       </div>
                     </div>
 
                     <div>
-                      <label className="text-xs font-semibold text-zinc-400 mb-1 block">Number of Guests</label>
+                      <label className="text-xs font-bold text-[#C6C0B4] mb-1 block">Number of Guests</label>
                       <select
                         value={guestCount}
                         onChange={(e) => setGuestCount(Number(e.target.value))}
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                        className="w-full bg-[#141210] border border-white/15 rounded-xl px-3 py-2 text-xs text-[#FFFFFF] focus:outline-none focus:border-[#E5A93C] shadow-sm font-medium"
                       >
                         {Array.from({ length: selectedTable.capacity }, (_, i) => i + 1).map((num) => (
-                          <option key={num} value={num}>
+                          <option key={num} value={num} className="bg-[#141210]">
                             {num} {num === 1 ? 'Guest' : 'Guests'} {num === selectedTable.capacity ? '(Max Capacity)' : ''}
                           </option>
                         ))}
@@ -430,42 +513,42 @@ export function InteractiveFloorPlanMock() {
                     </div>
 
                     <div>
-                      <label className="text-xs font-semibold text-zinc-400 mb-1 block">Your Full Name</label>
+                      <label className="text-xs font-bold text-[#C6C0B4] mb-1 block">Your Full Name</label>
                       <input
                         type="text"
                         required
                         placeholder="e.g., Alexander Wright"
                         value={customerName}
                         onChange={(e) => setCustomerName(e.target.value)}
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 font-medium"
+                        className="w-full bg-[#141210] border border-white/15 rounded-xl px-3 py-2 text-xs text-[#FFFFFF] focus:outline-none focus:border-[#E5A93C] font-bold shadow-sm"
                       />
                     </div>
 
                     <div>
-                      <label className="text-xs font-semibold text-zinc-400 mb-1 block">Phone / WhatsApp</label>
+                      <label className="text-xs font-bold text-[#C6C0B4] mb-1 block">Phone / WhatsApp</label>
                       <input
                         type="tel"
                         required
                         placeholder="e.g., +62 812 3456 7890"
                         value={customerPhone}
                         onChange={(e) => setCustomerPhone(e.target.value)}
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-amber-500"
+                        className="w-full bg-[#141210] border border-white/15 rounded-xl px-3 py-2 text-xs text-[#FFFFFF] focus:outline-none focus:border-[#E5A93C] shadow-sm font-medium"
                       />
                     </div>
 
                     <div>
-                      <label className="text-xs font-semibold text-zinc-400 mb-1 block">Special Requests (Optional)</label>
+                      <label className="text-xs font-bold text-[#C6C0B4] mb-1 block">Special Requests (Optional)</label>
                       <textarea
                         rows={2}
-                        placeholder="e.g., High chair needed, celebrating anniversary..."
+                        placeholder="e.g., Quiet corner preferred, celebrating anniversary..."
                         value={notes}
                         onChange={(e) => setNotes(e.target.value)}
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-amber-500 resize-none"
+                        className="w-full bg-[#141210] border border-white/15 rounded-xl p-2.5 text-xs text-[#FFFFFF] focus:outline-none focus:border-[#E5A93C] resize-none shadow-sm font-medium"
                       />
                     </div>
 
                     {errorMsg && (
-                      <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-300 text-xs flex items-center gap-2">
+                      <div className="p-3 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-300 text-xs flex items-center gap-2 shadow-sm font-medium">
                         <AlertCircle className="w-4 h-4 shrink-0" />
                         <span>{errorMsg}</span>
                       </div>
@@ -475,10 +558,10 @@ export function InteractiveFloorPlanMock() {
                       <Button
                         type="submit"
                         disabled={submitting}
-                        className="w-full bg-amber-500 hover:bg-amber-600 text-zinc-950 font-extrabold py-3.5 shadow-[0_0_20px_rgba(245,158,11,0.3)] gap-2"
+                        className="w-full bg-gradient-to-r from-[#F0BA53] via-[#FFFFFF] to-[#E5A93C] hover:opacity-95 text-[#141210] font-bold py-3.5 shadow-[0_0_25px_rgba(229,169,60,0.4)] gap-2 rounded-xl"
                       >
-                        <Calendar className="w-4 h-4" />
-                        <span>{submitting ? 'Confirming Booking...' : `Confirm 90-Min Reservation`}</span>
+                        <Calendar className="w-4 h-4 text-[#141210]" />
+                        <span>{submitting ? 'Confirming Reservation...' : `Confirm 90-Min Reservation`}</span>
                       </Button>
                     </div>
                   </form>
@@ -491,72 +574,60 @@ export function InteractiveFloorPlanMock() {
       </div>
 
       {/* Confirmation Modal */}
-      <AnimatePresence>
-        {confirmedReservation && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-6"
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-zinc-900 border border-zinc-800 rounded-3xl max-w-md w-full p-6 text-center shadow-2xl space-y-5"
+      {confirmedReservation && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-6">
+          <div className="bg-[#241E19] border border-[#E5A93C]/40 rounded-3xl max-w-md w-full p-6 text-center shadow-[0_25px_60px_rgba(0,0,0,0.9)] space-y-5">
+            <div className="w-16 h-16 bg-emerald-500/20 border border-emerald-500/40 rounded-full flex items-center justify-center mx-auto text-emerald-400 shadow-md">
+              <CheckCircle2 className="w-8 h-8" />
+            </div>
+
+            <div>
+              <h3 className="text-xl font-bold text-[#FFFFFF] drop-shadow-sm">Reservation Confirmed</h3>
+              <p className="text-xs text-[#ECE6DD] mt-1 font-normal">Your 90-minute table reservation is officially locked in our sanctuary system.</p>
+            </div>
+
+            <div className="bg-[#141210]/90 p-4 rounded-2xl border border-white/15 text-xs space-y-2.5 text-left shadow-inner">
+              <div className="flex justify-between text-[#ECE6DD]">
+                <span className="text-[#C6C0B4]">Sanctuary Table:</span>
+                <span className="font-bold text-[#F0BA53] text-sm">{confirmedReservation.tableName}</span>
+              </div>
+              <div className="flex justify-between text-[#ECE6DD]">
+                <span className="text-[#C6C0B4]">Guest Name:</span>
+                <span className="font-bold text-[#FFFFFF]">{confirmedReservation.customerName}</span>
+              </div>
+              <div className="flex justify-between text-[#ECE6DD]">
+                <span className="text-[#C6C0B4]">Date & Time:</span>
+                <span className="font-sans font-bold text-[#FFFFFF]">
+                  {new Date(confirmedReservation.reservationTime).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                </span>
+              </div>
+              <div className="flex justify-between text-[#ECE6DD]">
+                <span className="text-[#C6C0B4]">Duration:</span>
+                <span className="font-sans text-emerald-400 font-bold">90 Minutes (Standard)</span>
+              </div>
+            </div>
+
+            <div className="w-36 h-36 bg-white rounded-xl p-2.5 mx-auto shadow-inner border border-white/20">
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(JSON.stringify({ resId: confirmedReservation.id, table: confirmedReservation.tableName }))}`}
+                alt="Reservation QR"
+                className="w-full h-full object-contain"
+              />
+            </div>
+
+            <p className="text-xs text-[#C6C0B4] font-normal">
+              Present this QR code to our sanctuary host upon arrival.
+            </p>
+
+            <Button
+              onClick={() => setConfirmedReservation(null)}
+              className="w-full bg-gradient-to-r from-[#F0BA53] to-[#E5A93C] hover:opacity-95 text-[#141210] font-bold py-3 rounded-xl shadow-[0_0_25px_rgba(229,169,60,0.4)]"
             >
-              <div className="w-16 h-16 bg-emerald-500/20 border border-emerald-500/40 rounded-full flex items-center justify-center mx-auto text-emerald-400">
-                <CheckCircle2 className="w-8 h-8" />
-              </div>
-
-              <div>
-                <h3 className="text-xl font-extrabold text-white">Reservation Confirmed!</h3>
-                <p className="text-xs text-zinc-400 mt-1">Your 90-minute table reservation is officially locked in our system.</p>
-              </div>
-
-              <div className="bg-zinc-950/80 p-4 rounded-2xl border border-zinc-800 text-xs space-y-2.5 text-left">
-                <div className="flex justify-between text-zinc-300">
-                  <span className="text-zinc-500">Table:</span>
-                  <span className="font-bold text-amber-400 text-sm">{confirmedReservation.tableName}</span>
-                </div>
-                <div className="flex justify-between text-zinc-300">
-                  <span className="text-zinc-500">Guest Name:</span>
-                  <span className="font-semibold text-white">{confirmedReservation.customerName}</span>
-                </div>
-                <div className="flex justify-between text-zinc-300">
-                  <span className="text-zinc-500">Date & Time:</span>
-                  <span className="font-mono font-semibold text-white">
-                    {new Date(confirmedReservation.reservationTime).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
-                  </span>
-                </div>
-                <div className="flex justify-between text-zinc-300">
-                  <span className="text-zinc-500">Duration:</span>
-                  <span className="font-mono text-emerald-400">90 Minutes (Standard)</span>
-                </div>
-              </div>
-
-              <div className="w-36 h-36 bg-white rounded-xl p-2.5 mx-auto shadow-inner">
-                <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(JSON.stringify({ resId: confirmedReservation.id, table: confirmedReservation.tableName }))}`}
-                  alt="Reservation QR"
-                  className="w-full h-full object-contain"
-                />
-              </div>
-
-              <p className="text-[11px] text-zinc-500 font-mono">
-                Present this QR code to our host or barista upon arrival.
-              </p>
-
-              <Button
-                onClick={() => setConfirmedReservation(null)}
-                className="w-full bg-amber-500 hover:bg-amber-600 text-zinc-950 font-extrabold py-3"
-              >
-                Done
-              </Button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              Done
+            </Button>
+          </div>
+        </div>
+      )}
 
     </div>
   );

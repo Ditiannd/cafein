@@ -198,6 +198,30 @@ Remains the same as previous iterations (storing galleries, customer ratings, ev
 - **Styling**: Tailwind CSS + shadcn/ui + Framer Motion (for elegant slide-in drawer animations).
 - **Iconography**: **Lucide React** or **Radix Icons** (Mandatory for maintaining the minimalist, thin-stroke SVG line-art aesthetic across the dual-state UI and Sandbox Grid).
 - **ORM**: Drizzle ORM.
-- **Database**: PostgreSQL (Supabase / Neon).
 - **Authentication**: Better Auth (RBAC).
 - **File Storage**: UploadThing.
+
+## 8. **Landing Experience v2 (Premium Hospitality Storytelling)**
+The public landing page has been reimagined as a 9-chapter cinematic storytelling journey inspired by luxury resort hospitality (Aman, AYANA Resort Bali, Linear):
+
+### 8.1 9-Chapter Narrative Architecture
+1. **Chapter I — Hero Experience**: Slow parallax background scaling, ambient radial lighting, particle glow, and evolving scroll typography that shrinks and drifts into the narrative flow.
+2. **Chapter II — Brand Philosophy (`BrandStorySection`)**: Sticky title pinning on one column while 3 narrative cards scroll into view with mask-reveal opacity and depth transforms.
+3. **Chapter III — The Craft & Ritual (`CoffeePhilosophySection`)**: Parallax image layering, single-origin ethical sourcing highlights, and artisanal roasting methodology cards.
+4. **Chapter IV — Spatial Sanctuary Experience (`ExperienceScrollSection`)**: Showcasing acoustic damping, ergonomic private nooks, and our canonical spatial table management ecosystem v2.0.
+5. **Chapter V — Seasonal Privileges (`PromotionsSection`)**: Curated privileges and seasonal discounts with real-time sync.
+6. **Chapter VI — Resort Collections (`BestSellerSection`)**: Interactive category tab filtering for curated signature creations and table QR service readiness.
+7. **Chapter VII — Community & Gatherings (`EventSection`)**: Acoustic evenings, coffee tastings, and community workshops.
+8. **Chapter VIII — Memory Vault (`MemoryGallery`)**: Interactive masonry / storytelling grid with hover rotation, ambient lighting response, and destination discovery feel.
+9. **Chapter IX — Patron Testimonials (`ReviewsSection`)**: Verified patron badges, glowing amber stars, and magnetic card depth transitions.
+
+### 8.2 Interactive Reserve Centerpiece (Floating Dock & Orb)
+- Replaces the legacy static notification bar with a dynamic floating dock (`FloatingDock.tsx`).
+- Offers morphing orb collapse mode and quick navigation to *Menu*, *Sanctuary*, and *Archive*.
+- **Apple Maps-Style Live Planner Drawer**: Clicking "Reserve Table" triggers a bottom-up slide drawer containing our canonical `InteractiveFloorPlanMock`, allowing patrons to book precise table geometry in real time.
+
+### 8.3 Design Tokens & Motion Systems
+- **5-Level Typography Hierarchy**: Hero Title, Section Heading, Supporting Paragraph, Micro-Label (0.25em tracking), and Metadata Text.
+- **GPU-Accelerated Motion**: All scroll animations utilize `will-change: transform, opacity`, `transform: translateZ(0)`, and `backface-visibility: hidden` for 60fps rendering without layout shifts.
+- **Luxury Obsidian Palette**: Deeper zinc-950 background with animated grain (`.bg-grain`) and amber-500 luxury accents (`.card-luxury`, `.input-luxury`).
+

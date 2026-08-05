@@ -35,10 +35,10 @@ const OBJECT_ICONS: Record<StaticObjectType, any> = {
 
 const STATUS_COLORS: Record<TableStatus, { bg: string; border: string; text: string; label: string; badgeBg: string }> = {
   available: { bg: 'bg-emerald-500/15', border: 'border-emerald-500', text: 'text-emerald-400', label: 'Available', badgeBg: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' },
-  reserved: { bg: 'bg-amber-500/15', border: 'border-amber-500', text: 'text-amber-400', label: 'Reserved', badgeBg: 'bg-amber-500/20 text-amber-400 border-amber-500/40' },
+  reserved: { bg: 'bg-[#E5A93C]/15', border: 'border-[#E5A93C]', text: 'text-[#E5A93C]', label: 'Reserved', badgeBg: 'bg-[#E5A93C]/20 text-[#E5A93C] border-[#E5A93C]/40' },
   occupied: { bg: 'bg-rose-500/15', border: 'border-rose-500', text: 'text-rose-400', label: 'Occupied', badgeBg: 'bg-rose-500/20 text-rose-400 border-rose-500/40' },
   cleaning: { bg: 'bg-sky-500/15', border: 'border-sky-500', text: 'text-sky-400', label: 'Cleaning', badgeBg: 'bg-sky-500/20 text-sky-400 border-sky-500/40' },
-  out_of_service: { bg: 'bg-zinc-800/60', border: 'border-zinc-600', text: 'text-zinc-500', label: 'Out of Service', badgeBg: 'bg-zinc-800 text-zinc-500 border-zinc-700' },
+  out_of_service: { bg: 'bg-[#2B231D]/60', border: 'border-zinc-600', text: 'text-[#C6C0B4]', label: 'Out of Service', badgeBg: 'bg-[#2B231D] text-[#C6C0B4] border-[#E5A93C]/30' },
 };
 
 export default function BaristaTablesPage() {
@@ -52,21 +52,79 @@ export default function BaristaTablesPage() {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isNormalizing, setIsNormalizing] = useState(true);
 
-  // --- Responsive Scale Calculation ---
+  // --- Responsive Scale & Viewport Calculation ---
   useEffect(() => {
-    const updateScale = () => {
+    if (!layoutVersion || loading) return;
+    const normalizeViewport = () => {
       if (containerRef.current) {
         const { width, height } = containerRef.current.getBoundingClientRect();
-        const scaleX = width / 1200;
-        const scaleY = height / 800;
-        setScale(Math.min(scaleX, scaleY, 1.3)); // maintain aspect ratio
+        
+        // 1. Check if admin explicitly set a default viewport
+        if (layoutVersion.defaultViewportZoom != null && layoutVersion.defaultViewportX != null && layoutVersion.defaultViewportY != null) {
+          setScale(layoutVersion.defaultViewportZoom);
+          setPan({ x: layoutVersion.defaultViewportX, y: layoutVersion.defaultViewportY });
+          setIsNormalizing(false);
+          return;
+        }
+
+        // 2. Fit-to-screen fallback
+        if (tables.length === 0 && layoutObjects.length === 0) {
+          setScale(1);
+          setPan({ x: 0, y: 0 });
+          setIsNormalizing(false);
+          return;
+        }
+
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        
+        tables.forEach(t => {
+          if (t.x < minX) minX = t.x;
+          if (t.y < minY) minY = t.y;
+          if (t.x + t.width > maxX) maxX = t.x + t.width;
+          if (t.y + t.height > maxY) maxY = t.y + t.height;
+        });
+
+        layoutObjects.forEach(o => {
+          if (o.x < minX) minX = o.x;
+          if (o.y < minY) minY = o.y;
+          if (o.x + o.width > maxX) maxX = o.x + o.width;
+          if (o.y + o.height > maxY) maxY = o.y + o.height;
+        });
+
+        // Add padding
+        const padding = 100;
+        minX -= padding;
+        minY -= padding;
+        maxX += padding;
+        maxY += padding;
+
+        const contentWidth = maxX - minX;
+        const contentHeight = maxY - minY;
+
+        // Calculate scale to fit container
+        const scaleX = width / contentWidth;
+        const scaleY = height / contentHeight;
+        const newScale = Math.min(scaleX, scaleY, 1.5); // Cap max scale
+
+        // Calculate pan to center the content
+        const scaledContentWidth = contentWidth * newScale;
+        const scaledContentHeight = contentHeight * newScale;
+        
+        const newPanX = (width - scaledContentWidth) / 2 - (minX * newScale);
+        const newPanY = (height - scaledContentHeight) / 2 - (minY * newScale);
+
+        setScale(newScale);
+        setPan({ x: newPanX, y: newPanY });
+        setIsNormalizing(false);
       }
     };
-    updateScale();
-    window.addEventListener('resize', updateScale);
-    return () => window.removeEventListener('resize', updateScale);
-  }, []);
+    normalizeViewport();
+    window.addEventListener('resize', normalizeViewport);
+    return () => window.removeEventListener('resize', normalizeViewport);
+  }, [layoutVersion, tables, layoutObjects, loading]);
 
   // --- Real-time Layout & Status Fetching ---
   const fetchLayoutAndStatus = useCallback(async (isSilent = false) => {
@@ -123,9 +181,9 @@ export default function BaristaTablesPage() {
 
   if (loading && tables.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center bg-zinc-950 text-zinc-400">
+      <div className="flex h-full items-center justify-center bg-[#141210] text-[#C6C0B4]">
         <div className="flex flex-col items-center gap-3">
-          <RefreshCw className="w-8 h-8 animate-spin text-amber-500" />
+          <RefreshCw className="w-8 h-8 animate-spin text-[#E5A93C]" />
           <p className="text-sm font-medium">Synchronizing Canonical Floor Plan...</p>
         </div>
       </div>
@@ -133,36 +191,36 @@ export default function BaristaTablesPage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] bg-zinc-950 text-zinc-100 overflow-hidden font-sans select-none">
+    <div className="flex flex-col h-[calc(100vh-4rem)] bg-[#141210] text-[#FFFFFF] overflow-hidden font-sans select-none">
       
       {/* Header Bar */}
-      <header className="flex items-center justify-between px-6 py-3 bg-zinc-900/90 border-b border-zinc-800/80 backdrop-blur-md z-20 shrink-0">
+      <header className="flex items-center justify-between px-6 py-3 bg-[#1E1A17]/90 border-b border-[#E5A93C]/20/80 backdrop-blur-md z-20 shrink-0">
         <div className="flex items-center gap-4">
           <div>
             <h1 className="text-lg font-bold text-white flex items-center gap-2">
-              Spatial Table Operations <span className="text-xs px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 font-mono font-semibold">LIVE CANONICAL</span>
+              Spatial Table Operations <span className="text-xs px-2 py-0.5 rounded bg-[#E5A93C]/20 text-[#E5A93C] font-mono font-semibold">LIVE CANONICAL</span>
             </h1>
-            <p className="text-xs text-zinc-400">Layout: <span className="text-zinc-200 font-semibold">{layoutVersion?.name || 'Main Dining Room'}</span></p>
+            <p className="text-xs text-[#C6C0B4]">Layout: <span className="text-[#FDFBF7] font-semibold">{layoutVersion?.name || 'Main Dining Room'}</span></p>
           </div>
         </div>
 
         {/* Live Legend Badges */}
-        <div className="hidden md:flex items-center gap-3 bg-zinc-950/60 px-4 py-1.5 rounded-xl border border-zinc-800 text-xs font-semibold">
+        <div className="hidden md:flex items-center gap-3 bg-[#141210]/60 px-4 py-1.5 rounded-xl border border-[#E5A93C]/20 text-xs font-semibold">
           <div className="flex items-center gap-1.5 text-emerald-400">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             <span>Available ({tables.filter(t => t.status === 'available').length})</span>
           </div>
-          <div className="h-3 w-[1px] bg-zinc-800" />
-          <div className="flex items-center gap-1.5 text-amber-400">
+          <div className="h-3 w-[1px] bg-[#2B231D]" />
+          <div className="flex items-center gap-1.5 text-[#E5A93C]">
             <span className="w-2 h-2 rounded-full bg-amber-400" />
             <span>Reserved ({tables.filter(t => t.status === 'reserved').length})</span>
           </div>
-          <div className="h-3 w-[1px] bg-zinc-800" />
+          <div className="h-3 w-[1px] bg-[#2B231D]" />
           <div className="flex items-center gap-1.5 text-rose-400">
             <span className="w-2 h-2 rounded-full bg-rose-500" />
             <span>Occupied ({tables.filter(t => t.status === 'occupied').length})</span>
           </div>
-          <div className="h-3 w-[1px] bg-zinc-800" />
+          <div className="h-3 w-[1px] bg-[#2B231D]" />
           <div className="flex items-center gap-1.5 text-sky-400">
             <span className="w-2 h-2 rounded-full bg-sky-400" />
             <span>Cleaning ({tables.filter(t => t.status === 'cleaning').length})</span>
@@ -173,7 +231,7 @@ export default function BaristaTablesPage() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => fetchLayoutAndStatus()}
-            className="p-2 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition-colors"
+            className="p-2 text-[#C6C0B4] hover:text-white rounded-lg hover:bg-[#2B231D] transition-colors"
             title="Refresh Layout"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -189,7 +247,7 @@ export default function BaristaTablesPage() {
                 : 'border-rose-500/60 text-rose-400 hover:bg-rose-500/10'
             }`}
           >
-            <span className={`w-2 h-2 rounded-full ${storeStatus.isOpen ? 'bg-zinc-950' : 'bg-rose-500'}`} />
+            <span className={`w-2 h-2 rounded-full ${storeStatus.isOpen ? 'bg-[#141210]' : 'bg-rose-500'}`} />
             <span>Store: {storeStatus.isOpen ? 'OPEN FOR ORDERS' : 'CLOSED'}</span>
           </Button>
         </div>
@@ -199,18 +257,19 @@ export default function BaristaTablesPage() {
       <div className="flex flex-1 overflow-hidden relative">
         
         {/* Responsive Canvas Container */}
-        <main ref={containerRef} className="flex-1 bg-zinc-950 relative overflow-hidden flex items-center justify-center p-6">
+        <main ref={containerRef} className="flex-1 bg-[#141210] relative overflow-hidden">
           <div
             style={{
-              width: '1200px',
-              height: '800px',
-              transform: `scale(${scale})`,
-              transformOrigin: 'center center',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`,
+              transformOrigin: '0 0',
+              opacity: isNormalizing ? 0 : 1,
             }}
-            className="relative bg-zinc-900/40 border border-zinc-800/60 rounded-3xl shadow-2xl overflow-hidden transition-all duration-300"
+            className="transition-all duration-300"
           >
-            {/* Subtle Grid Indicator */}
-            <div className="absolute inset-0 bg-[radial-gradient(circle,#27272a_1px,transparent_1px)] [background-size:24px_24px] opacity-40 pointer-events-none" />
+            {/* Subtle Grid Indicator could go here, but it's an infinite canvas now. We can leave it out or size it large. */}
 
             {/* Render Static Decorative architectural objects */}
             {layoutObjects.map((obj) => {
@@ -227,7 +286,7 @@ export default function BaristaTablesPage() {
                     transform: `rotate(${obj.rotation}deg)`,
                     zIndex: obj.zIndex,
                   }}
-                  className="absolute pointer-events-none select-none rounded-xl bg-zinc-900/60 border border-zinc-800/80 flex flex-col items-center justify-center p-1.5 text-zinc-600"
+                  className="absolute pointer-events-none select-none rounded-xl bg-[#1E1A17]/60 border border-[#E5A93C]/20/80 flex flex-col items-center justify-center p-1.5 text-zinc-600"
                 >
                   <Icon className="w-5 h-5 mb-0.5 opacity-50" />
                   <span className="text-[10px] font-bold tracking-tight text-center truncate w-full px-1">{obj.name}</span>
@@ -267,7 +326,7 @@ export default function BaristaTablesPage() {
 
                   <Icon className={`w-6 h-6 mb-1 ${statusStyle.text}`} />
                   <span className="text-sm font-extrabold tracking-tight text-white drop-shadow truncate max-w-full px-1">{table.name}</span>
-                  <span className="text-[10px] font-mono font-bold bg-zinc-950/70 text-zinc-300 px-2 py-0.5 rounded-full mt-0.5 border border-zinc-700/40">
+                  <span className="text-[10px] font-mono font-bold bg-[#141210]/70 text-[#ECE6DD] px-2 py-0.5 rounded-full mt-0.5 border border-[#E5A93C]/30/40">
                     {table.capacity} Pax
                   </span>
 
@@ -278,7 +337,7 @@ export default function BaristaTablesPage() {
                     </span>
                   )}
                   {!table.currentOrder && table.currentReservation && (
-                    <span className="absolute -bottom-2.5 bg-amber-500 text-zinc-950 font-mono text-[9px] font-bold px-2 py-0.5 rounded-full shadow-md border border-amber-400">
+                    <span className="absolute -bottom-2.5 bg-[#E5A93C] text-zinc-950 font-mono text-[9px] font-bold px-2 py-0.5 rounded-full shadow-md border border-[#E5A93C]">
                       Res • {table.currentReservation.customerName.split(' ')[0]}
                     </span>
                   )}
@@ -289,27 +348,27 @@ export default function BaristaTablesPage() {
         </main>
 
         {/* Right Sidebar: Table Operations & Live Ticket Details */}
-        <aside className="w-96 bg-zinc-900/95 border-l border-zinc-800/90 flex flex-col z-10 shrink-0 shadow-2xl backdrop-blur-xl">
+        <aside className="w-96 bg-[#1E1A17]/95 border-l border-[#E5A93C]/20/90 flex flex-col z-10 shrink-0 shadow-2xl backdrop-blur-xl">
           {!selectedTable ? (
-            <div className="flex-1 flex flex-col items-center justify-center text-center p-8 text-zinc-500 gap-3">
-              <div className="w-16 h-16 rounded-2xl bg-zinc-800/50 border border-zinc-700/50 flex items-center justify-center text-zinc-600">
+            <div className="flex-1 flex flex-col items-center justify-center text-center p-8 text-[#C6C0B4] gap-3">
+              <div className="w-16 h-16 rounded-2xl bg-[#2B231D]/50 border border-[#E5A93C]/30/50 flex items-center justify-center text-zinc-600">
                 <Utensils className="w-8 h-8" />
               </div>
-              <h3 className="text-sm font-bold text-zinc-300">Select a Table</h3>
-              <p className="text-xs text-zinc-500 max-w-xs">Click any canonical table on the spatial floor layout to manage reservations, orders, and cleaning lifecycle states.</p>
+              <h3 className="text-sm font-bold text-[#ECE6DD]">Select a Table</h3>
+              <p className="text-xs text-[#C6C0B4] max-w-xs">Click any canonical table on the spatial floor layout to manage reservations, orders, and cleaning lifecycle states.</p>
             </div>
           ) : (
             <div className="flex-1 flex flex-col overflow-y-auto p-6 gap-6 custom-scrollbar">
               
               {/* Selected Table Header */}
-              <div className="flex items-center justify-between pb-4 border-b border-zinc-800">
+              <div className="flex items-center justify-between pb-4 border-b border-[#E5A93C]/20">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                  <div className="w-12 h-12 rounded-2xl bg-[#E5A93C]/10 border border-[#E5A93C]/30 flex items-center justify-center text-[#E5A93C]">
                     {React.createElement(SHAPE_ICONS[selectedTable.shape] || Circle, { className: "w-6 h-6" })}
                   </div>
                   <div>
                     <h2 className="text-lg font-extrabold text-white">{selectedTable.name}</h2>
-                    <span className="text-xs text-zinc-400 font-mono">
+                    <span className="text-xs text-[#C6C0B4] font-mono">
                       {selectedTable.capacity} Pax • {selectedTable.shape.replace('_', ' ')}
                     </span>
                   </div>
@@ -334,15 +393,15 @@ export default function BaristaTablesPage() {
                   </div>
 
                   <div className="space-y-2 text-xs">
-                    <div className="flex justify-between text-zinc-300">
+                    <div className="flex justify-between text-[#ECE6DD]">
                       <span>Order Status:</span>
                       <span className="font-semibold text-rose-300 capitalize">{selectedTable.currentOrder.status.replace('_', ' ')}</span>
                     </div>
-                    <div className="flex justify-between text-zinc-300">
+                    <div className="flex justify-between text-[#ECE6DD]">
                       <span>Total Amount:</span>
                       <span className="font-mono font-bold text-white">Rp {selectedTable.currentOrder.totalAmount.toLocaleString()}</span>
                     </div>
-                    <div className="flex justify-between text-zinc-400">
+                    <div className="flex justify-between text-[#C6C0B4]">
                       <span>Ordered Time:</span>
                       <span>{new Date(selectedTable.currentOrder.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
@@ -359,45 +418,45 @@ export default function BaristaTablesPage() {
                   </Button>
                 </div>
               ) : selectedTable.currentReservation ? (
-                <div className="bg-gradient-to-br from-amber-950/40 to-zinc-900 p-5 rounded-2xl border border-amber-500/40 space-y-4">
-                  <div className="flex items-center justify-between border-b border-amber-500/20 pb-3">
+                <div className="bg-gradient-to-br from-amber-950/40 to-zinc-900 p-5 rounded-2xl border border-[#E5A93C]/40 space-y-4">
+                  <div className="flex items-center justify-between border-b border-[#E5A93C]/20 pb-3">
                     <div className="flex items-center gap-2">
-                      <Clock className="w-5 h-5 text-amber-400" />
+                      <Clock className="w-5 h-5 text-[#E5A93C]" />
                       <span className="text-sm font-bold text-white">Upcoming Reservation</span>
                     </div>
-                    <span className="text-xs font-mono font-bold text-amber-400">
+                    <span className="text-xs font-mono font-bold text-[#E5A93C]">
                       {new Date(selectedTable.currentReservation.reservationTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
 
-                  <div className="space-y-1.5 text-xs text-zinc-300">
+                  <div className="space-y-1.5 text-xs text-[#ECE6DD]">
                     <p className="font-bold text-white text-sm">{selectedTable.currentReservation.customerName}</p>
-                    <p className="text-zinc-400">{selectedTable.currentReservation.guestCount} Guests • Confirmed</p>
+                    <p className="text-[#C6C0B4]">{selectedTable.currentReservation.guestCount} Guests • Confirmed</p>
                     {selectedTable.currentReservation.customerPhone && (
-                      <p className="font-mono text-amber-400">{selectedTable.currentReservation.customerPhone}</p>
+                      <p className="font-mono text-[#E5A93C]">{selectedTable.currentReservation.customerPhone}</p>
                     )}
                   </div>
 
                   <Button
                     onClick={() => handleUpdateStatus('occupied')}
                     disabled={updating}
-                    className="w-full bg-amber-500 hover:bg-amber-600 text-zinc-950 font-bold gap-2"
+                    className="w-full bg-[#E5A93C] hover:bg-amber-600 text-zinc-950 font-bold gap-2"
                   >
                     <Users className="w-4 h-4" />
                     <span>Seat Guest (Mark Occupied)</span>
                   </Button>
                 </div>
               ) : (
-                <div className="bg-zinc-950/60 p-5 rounded-2xl border border-zinc-800/80 text-center space-y-2">
+                <div className="bg-[#141210]/60 p-5 rounded-2xl border border-[#E5A93C]/20/80 text-center space-y-2">
                   <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto" />
                   <h4 className="text-sm font-bold text-white">Table is Available</h4>
-                  <p className="text-xs text-zinc-400">No active orders or upcoming reservations attached to this table.</p>
+                  <p className="text-xs text-[#C6C0B4]">No active orders or upcoming reservations attached to this table.</p>
                 </div>
               )}
 
               {/* Staff Lifecycle Quick Actions */}
-              <div className="space-y-3 mt-auto pt-6 border-t border-zinc-800">
-                <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Staff Status Overrides</h4>
+              <div className="space-y-3 mt-auto pt-6 border-t border-[#E5A93C]/20">
+                <h4 className="text-xs font-bold text-[#C6C0B4] uppercase tracking-wider">Staff Status Overrides</h4>
                 
                 <div className="grid grid-cols-2 gap-2.5">
                   <Button
@@ -434,9 +493,9 @@ export default function BaristaTablesPage() {
                     onClick={() => handleUpdateStatus(selectedTable.status === 'out_of_service' ? 'available' : 'out_of_service')}
                     disabled={updating}
                     variant="outline"
-                    className="border-zinc-700 hover:bg-zinc-800 text-zinc-400 text-xs font-bold justify-start gap-2 h-10 col-span-1"
+                    className="border-[#E5A93C]/30 hover:bg-[#2B231D] text-[#C6C0B4] text-xs font-bold justify-start gap-2 h-10 col-span-1"
                   >
-                    <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                    <AlertTriangle className="w-3.5 h-3.5 text-[#E5A93C]" />
                     <span>{selectedTable.status === 'out_of_service' ? 'Enable Table' : 'Out of Service'}</span>
                   </Button>
                 </div>

@@ -13,7 +13,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const { id } = await params;
     const body = await request.json();
-    const { name, price, categoryId, image, badge, isBestSeller, isAvailable } = body;
+    const { name, price, categoryId, image, badge, isBestSeller, isAvailable, modifierOptions } = body;
 
     const result = await db.update(catalogItems)
       .set({
@@ -24,6 +24,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         ...(badge !== undefined && { badge: badge || null }),
         ...(isBestSeller !== undefined && { isBestSeller }),
         ...(isAvailable !== undefined && { isAvailable }),
+        ...(modifierOptions !== undefined && { modifierOptions }),
       })
       .where(eq(catalogItems.id, parseInt(id)))
       .returning();
