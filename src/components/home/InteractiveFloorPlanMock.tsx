@@ -360,7 +360,7 @@ export function InteractiveFloorPlanMock() {
           </div>
         )}
 
-        <p className="text-xs text-[#C6C0B4] mt-4 text-center font-normal">
+        <p className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 text-xs text-[#C6C0B4] text-center font-normal bg-[#141210]/80 px-4 py-1.5 rounded-full border border-white/10 backdrop-blur-md whitespace-nowrap shadow-sm">
           Select any available table to reserve seating or order directly.
         </p>
       </div>
