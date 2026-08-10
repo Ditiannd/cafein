@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
+import { motion, useMotionValue, useTransform } from 'framer-motion';
 
 export function CustomCursor() {
   const [isTouchDevice, setIsTouchDevice] = useState(true); // default to true to avoid hydration mismatch, update in useEffect
@@ -9,14 +9,6 @@ export function CustomCursor() {
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
   const hoverState = useMotionValue(0); // 0 = normal, 1 = hovering
-
-  const springConfigInner = { damping: 28, stiffness: 700, mass: 0.1 };
-  const cursorX = useSpring(mouseX, springConfigInner);
-  const cursorY = useSpring(mouseY, springConfigInner);
-
-  const springConfigOuter = { damping: 20, stiffness: 200, mass: 0.2 };
-  const cursorOuterX = useSpring(mouseX, springConfigOuter);
-  const cursorOuterY = useSpring(mouseY, springConfigOuter);
 
   // Transform hoverState into visual properties
   const innerScale = useTransform(hoverState, [0, 1], [1, 0]);
@@ -78,8 +70,8 @@ export function CustomCursor() {
       <motion.div
         className="fixed top-0 left-0 w-3 h-3 bg-[#E5A93C] rounded-full pointer-events-none z-[9999] mix-blend-difference hidden md:block"
         style={{
-          x: cursorX,
-          y: cursorY,
+          x: mouseX,
+          y: mouseY,
           translateX: "-50%",
           translateY: "-50%",
           scale: innerScale,
@@ -89,8 +81,8 @@ export function CustomCursor() {
       <motion.div
         className="fixed top-0 left-0 w-10 h-10 border rounded-full pointer-events-none z-[9998] flex items-center justify-center backdrop-blur-[1px] hidden md:block"
         style={{
-          x: cursorOuterX,
-          y: cursorOuterY,
+          x: mouseX,
+          y: mouseY,
           translateX: "-50%",
           translateY: "-50%",
           scale: outerScale,
