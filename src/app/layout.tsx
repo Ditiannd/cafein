@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter, Outfit } from 'next/font/google';
 import './globals.css';
-import { CustomCursor } from '@/components/ui/CustomCursor';
+
 import { PageLoader } from '@/components/ui/PageLoader';
 
 const inter = Inter({
@@ -28,7 +28,6 @@ export default function RootLayout({
     <html lang="en" className={`${inter.variable} ${outfit.variable} antialiased`}>
       <body>
         <PageLoader />
-        <CustomCursor />
         {children}
       </body>
     </html>
