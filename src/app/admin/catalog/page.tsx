@@ -5,7 +5,7 @@ import { Search, X, Settings, List, Save, Calendar, Tag, Sparkles, Coffee, Shiel
 import { Button } from '@/components/ui/Button';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useApiQuery } from '@/lib/hooks';
-import { api, CatalogItem } from '@/lib/api';
+import { api, CatalogItem, EventItem } from '@/lib/api';
 
 export default function CatalogManagerPage() {
   const [activeTab, setActiveTab] = useState<'catalog' | 'events' | 'settings'>('catalog');
