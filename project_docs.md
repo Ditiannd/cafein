@@ -63,7 +63,6 @@ Cafein Today is a modern, single-tenant cafe web application designed with a lux
 
 ### 3.6 Customer Interactive Booking (`/reservation`) & Menu Ordering
 - **Interactive Floor Plan**: Customers select available tables directly from a responsive spatial layout on the homepage slide drawer or dedicated `/reservation` route.
-- **90-Minute Seating & Validation**: Supports standard 90-minute reservation durations with business hour checks (08:00 - 22:00) and double-booking prevention.
 - **QR Code Menu Ordering**: Scanning table QR cards automatically binds the customer's online order to the canonical table ID.
 
 ## 4. UI/UX Principles

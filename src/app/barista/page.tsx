@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { Store, RefreshCw, CheckCircle2, Receipt, ArrowRight, Sparkles, Clock, Coffee, ShieldCheck } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useApiQuery } from '@/lib/hooks';
-import { api, Order } from '@/lib/api';
+import { api, Order, OrderDetail } from '@/lib/api';
 
 type OrderStatus = 'pending_payment' | 'verifying' | 'preparing' | 'ready' | 'completed';
 
@@ -109,6 +109,17 @@ export default function BaristaDashboard() {
   const { data: orders = [], refetch } = useApiQuery('order-queue', () => api.orders.list());
   const [isStoreOpen, setIsStoreOpen] = useState(true);
   const [verifyingOrder, setVerifyingOrder] = useState<Order | null>(null);
+  const [verifyingOrderDetails, setVerifyingOrderDetails] = useState<OrderDetail | null>(null);
+
+  React.useEffect(() => {
+    if (verifyingOrder) {
+      api.orders.get(verifyingOrder.id)
+        .then(setVerifyingOrderDetails)
+        .catch(console.error);
+    } else {
+      setVerifyingOrderDetails(null);
+    }
+  }, [verifyingOrder]);
 
   // Fetch store status
   const { data: storeStatus } = useApiQuery('store-status', () => api.store.getStatus());
@@ -233,9 +244,35 @@ export default function BaristaDashboard() {
               <h2 className="section-heading text-3xl text-white mt-4 mb-2">Verify Slip?</h2>
               <p className="metadata-text mb-6">Order #{verifyingOrder.orderNumber} • {verifyingOrder.customerName || 'Online Patron'}</p>
               
-              <div className="bg-[#141210] border border-[#E5A93C]/20 p-5 rounded-2xl mb-8 space-y-2 text-left font-mono text-xs">
+              <div className="bg-[#141210] border border-[#E5A93C]/20 p-5 rounded-2xl mb-8 space-y-2 text-left font-mono text-xs max-h-[40vh] overflow-y-auto custom-scrollbar">
                 <div className="flex justify-between"><span className="text-[#C6C0B4]">Table Allocation:</span> <span className="text-white font-bold">{verifyingOrder.tableNumber ? `Table ${verifyingOrder.tableNumber}` : 'Takeaway Station'}</span></div>
                 <div className="flex justify-between"><span className="text-[#C6C0B4]">Payment Gateway:</span> <span className="text-[#E5A93C] font-bold uppercase">{verifyingOrder.paymentMethod || 'Bank Transfer'}</span></div>
+                
+                {verifyingOrderDetails ? (
+                  <div className="pt-3 border-t border-[#E5A93C]/20 mt-3 space-y-2">
+                    <span className="text-[#C6C0B4]">Order Items:</span>
+                    <ul className="space-y-2">
+                      {verifyingOrderDetails.items.map(item => (
+                        <li key={item.id} className="flex flex-col text-white">
+                          <div className="flex justify-between items-start">
+                            <span><span className="font-bold text-[#E5A93C]">{item.quantity}x</span> {item.itemName || 'Unknown Item'}</span>
+                            <span className="whitespace-nowrap ml-2">Rp {(item.unitPrice * item.quantity).toLocaleString('id-ID')}</span>
+                          </div>
+                          {(item.iceLevel || item.sugarLevel || item.milkType) && (
+                            <div className="text-[10px] text-[#C6C0B4] ml-5 mt-0.5">
+                              {[item.iceLevel, item.sugarLevel, item.milkType].filter(Boolean).join(' • ')}
+                            </div>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <div className="pt-3 border-t border-[#E5A93C]/20 mt-3 text-center text-[#C6C0B4] animate-pulse">
+                    Retrieving itemized receipt...
+                  </div>
+                )}
+
                 <div className="flex justify-between items-baseline pt-3 border-t border-[#E5A93C]/20 mt-3">
                   <span className="micro-label text-[10px]">Total Amount Due</span>
                   <span className="text-xl font-extrabold text-[#E5A93C]">Rp {verifyingOrder.totalAmount.toLocaleString('id-ID')}</span>

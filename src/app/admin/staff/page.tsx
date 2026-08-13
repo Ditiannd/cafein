@@ -202,7 +202,6 @@ export default function StaffManagerPage() {
                     value={newStaff.name}
                     onChange={(e) => setNewStaff({...newStaff, name: e.target.value})}
                     className="input-luxury w-full bg-zinc-900 border border-zinc-800 focus:border-amber-500 rounded-xl p-3 text-white font-bold text-sm" 
-                    placeholder="e.g. Jonathan Vance" 
                   />
                 </div>
                 <div>
@@ -212,7 +211,6 @@ export default function StaffManagerPage() {
                     value={newStaff.email}
                     onChange={(e) => setNewStaff({...newStaff, email: e.target.value})}
                     className="input-luxury w-full bg-zinc-900 border border-zinc-800 focus:border-amber-500 rounded-xl p-3 text-white font-bold text-sm" 
-                    placeholder="jonathan@cafeintoday.com" 
                   />
                 </div>
                 <div>
@@ -236,7 +234,6 @@ export default function StaffManagerPage() {
                     value={newStaff.password}
                     onChange={(e) => setNewStaff({...newStaff, password: e.target.value})}
                     className="input-luxury w-full bg-zinc-900 border border-zinc-800 focus:border-amber-500 rounded-xl p-3 text-white" 
-                    placeholder="••••••••••••" 
                   />
                 </div>
               </div>

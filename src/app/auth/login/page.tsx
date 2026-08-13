@@ -77,7 +77,6 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="input-luxury w-full bg-zinc-950 border border-zinc-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 rounded-xl px-4 py-3 text-white placeholder-zinc-600 font-mono transition-all"
-                placeholder="admin@cafeintoday.com"
               />
             </div>
 
@@ -94,7 +93,6 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="input-luxury w-full bg-zinc-950 border border-zinc-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 rounded-xl px-4 py-3 text-white placeholder-zinc-600 font-mono transition-all"
-                placeholder="••••••••••••"
               />
             </div>
 

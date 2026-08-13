@@ -42,10 +42,17 @@ export const users = pgTable('users', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
+export type PaymentRules = {
+  bankName?: string;
+  accountNumber?: string;
+  qrisUrl?: string;
+};
+
 export const storeSettings = pgTable('store_settings', {
   id: serial('id').primaryKey(),
   isOpen: boolean('is_open').default(true).notNull(),
   announcementBanner: text('announcement_banner'),
+  paymentRules: jsonb('payment_rules').$type<PaymentRules>(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 

@@ -13,6 +13,116 @@ export default function CatalogManagerPage() {
   
   const { data: catalog = [], refetch: refetchCatalog } = useApiQuery('catalog', () => api.catalog.list());
   const { data: events = [] } = useApiQuery('events', () => api.events.listPublic());
+  const { data: storeStatus, refetch: refetchStoreStatus } = useApiQuery('store_status', () => api.store.getStatus());
+
+  // Settings / Payment Rules State
+  const [bankName, setBankName] = useState('Bank Central Asia (BCA)');
+  const [accountNumber, setAccountNumber] = useState('872-3612-874');
+  const [qrisUrl, setQrisUrl] = useState('');
+
+  React.useEffect(() => {
+    if (storeStatus?.paymentRules) {
+      if (storeStatus.paymentRules.bankName) setBankName(storeStatus.paymentRules.bankName);
+      if (storeStatus.paymentRules.accountNumber) setAccountNumber(storeStatus.paymentRules.accountNumber);
+      if (storeStatus.paymentRules.qrisUrl !== undefined) setQrisUrl(storeStatus.paymentRules.qrisUrl);
+    }
+  }, [storeStatus]);
+
+  const handleSavePaymentRules = async () => {
+    try {
+      await api.store.setStatus({
+        paymentRules: { bankName, accountNumber, qrisUrl }
+      });
+      alert('Payment rules updated successfully!');
+      refetchStoreStatus();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to update payment rules');
+    }
+  };
+
+  // Catalog Item Management State
+  const [isCatalogModalOpen, setIsCatalogModalOpen] = useState(false);
+  const [catalogModalItem, setCatalogModalItem] = useState<Partial<CatalogItem>>({});
+
+  const openCatalogModal = (item?: CatalogItem) => {
+    if (item) {
+      setCatalogModalItem(item);
+    } else {
+      setCatalogModalItem({ name: '', price: 0, categoryId: 1, image: '', badge: '', isBestSeller: false, isAvailable: true });
+    }
+    setIsCatalogModalOpen(true);
+  };
+
+  const handleSaveCatalogItem = async () => {
+    try {
+      if (catalogModalItem.id) {
+        await api.catalog.update(catalogModalItem.id, catalogModalItem);
+      } else {
+        await api.catalog.create(catalogModalItem);
+      }
+      refetchCatalog();
+      setIsCatalogModalOpen(false);
+    } catch (err) {
+      console.error('Failed to save catalog item:', err);
+      alert('Failed to save item');
+    }
+  };
+
+  const handleDeleteCatalogItem = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this menu item?')) return;
+    try {
+      await api.catalog.delete(id);
+      refetchCatalog();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to delete item');
+    }
+  };
+
+  // Event Management State
+  const [isEventModalOpen, setIsEventModalOpen] = useState(false);
+  const [eventModalItem, setEventModalItem] = useState<Partial<EventItem>>({});
+
+  const openEventModal = (item?: EventItem) => {
+    if (item) {
+      setEventModalItem(item);
+    } else {
+      setEventModalItem({ title: '', date: '', description: '', image: '', isVisible: true });
+    }
+    setIsEventModalOpen(true);
+  };
+
+  const handleSaveEvent = async () => {
+    try {
+      if (eventModalItem.id) {
+        await api.events.update(eventModalItem.id, eventModalItem);
+      } else {
+        await api.events.create(eventModalItem);
+      }
+      refetchEvents();
+      setIsEventModalOpen(false);
+    } catch (err) {
+      console.error('Failed to save event:', err);
+      alert('Failed to save event');
+    }
+  };
+
+  const handleDeleteEvent = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this event?')) return;
+    try {
+      await api.events.delete(id);
+      refetchEvents();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to delete event');
+    }
+  };
+
+  const refetchEvents = () => {
+    // A trick to refetch since we didn't extract refetch from useApiQuery for events
+    window.location.reload();
+  };
 
   // Discount Management State
   const [discountModalItem, setDiscountModalItem] = useState<CatalogItem | null>(null);
@@ -121,7 +231,10 @@ export default function CatalogManagerPage() {
                 className="input-luxury w-full bg-zinc-950 border border-zinc-800 focus:border-amber-500 rounded-xl pl-10 pr-4 py-2 text-xs text-white placeholder:text-zinc-600"
               />
             </div>
-            <span className="text-zinc-500 text-xs font-mono font-bold">Total Items: {catalog.length}</span>
+            <div className="flex items-center gap-4">
+              <span className="text-zinc-500 text-xs font-mono font-bold">Total Items: {catalog.length}</span>
+              <Button variant="luxury" className="text-xs font-bold py-2" onClick={() => openCatalogModal()}>+ Add Menu Item</Button>
+            </div>
           </div>
 
           <div className="flex-1 overflow-x-auto custom-scrollbar font-mono text-xs">
@@ -180,17 +293,21 @@ export default function CatalogManagerPage() {
                         </span>
                       </td>
                       <td className="py-4 px-6 text-right font-mono">
-                        <button 
-                          onClick={() => openDiscountModal(item)}
-                          className={`px-3 py-1.5 rounded-xl transition-all font-bold text-xs flex items-center gap-1.5 ml-auto ${
-                            promo 
-                              ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40 shadow-sm' 
-                              : 'bg-zinc-800 text-zinc-300 hover:bg-amber-500 hover:text-zinc-950 border border-zinc-700 hover:border-amber-500'
-                          }`}
-                        >
-                          <Tag className="w-3.5 h-3.5" />
-                          <span>{promo ? 'Edit Promo' : 'Add Discount'}</span>
-                        </button>
+                        <div className="flex items-center justify-end gap-2">
+                          <button onClick={() => openCatalogModal(item)} className="px-3 py-1.5 rounded-xl transition-all font-bold text-xs bg-zinc-800 text-zinc-300 hover:bg-zinc-700">Edit</button>
+                          <button onClick={() => handleDeleteCatalogItem(item.id)} className="px-3 py-1.5 rounded-xl transition-all font-bold text-xs bg-rose-500/10 text-rose-400 hover:bg-rose-500/20">Del</button>
+                          <button 
+                            onClick={() => openDiscountModal(item)}
+                            className={`px-3 py-1.5 rounded-xl transition-all font-bold text-xs flex items-center gap-1.5 ${
+                              promo 
+                                ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40 shadow-sm' 
+                                : 'bg-zinc-800 text-zinc-300 hover:bg-amber-500 hover:text-zinc-950 border border-zinc-700 hover:border-amber-500'
+                            }`}
+                          >
+                            <Tag className="w-3.5 h-3.5" />
+                            <span>{promo ? 'Edit Promo' : 'Add Discount'}</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   )
@@ -208,6 +325,7 @@ export default function CatalogManagerPage() {
               <h2 className="text-xl font-heading font-extrabold text-white">Resort Event Happenings</h2>
               <p className="text-xs font-mono text-zinc-400 mt-0.5">Active public experiences and weekend masterclasses broadcasted to the landing page.</p>
             </div>
+            <Button variant="luxury" className="text-xs font-bold py-2" onClick={() => openEventModal()}>+ Add Event</Button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {events.map(event => (
@@ -221,6 +339,10 @@ export default function CatalogManagerPage() {
                     <span className="text-[10px] font-mono uppercase bg-amber-500/15 text-amber-300 px-2 py-0.5 rounded border border-amber-500/30 font-bold">{event.date}</span>
                     <h3 className="font-heading font-extrabold text-base text-white mt-1.5 group-hover:text-amber-300 transition-colors">{event.title}</h3>
                     <p className="text-zinc-400 text-xs mt-1 line-clamp-2">{event.description}</p>
+                  </div>
+                  <div className="mt-3 flex gap-2">
+                    <button onClick={() => openEventModal(event)} className="px-3 py-1 rounded-lg text-xs font-bold bg-zinc-800 text-zinc-300 hover:text-white">Edit</button>
+                    <button onClick={() => handleDeleteEvent(event.id)} className="px-3 py-1 rounded-lg text-xs font-bold bg-rose-500/10 text-rose-400 hover:bg-rose-500/20">Delete</button>
                   </div>
                 </div>
               </div>
@@ -243,16 +365,24 @@ export default function CatalogManagerPage() {
             </div>
             <div>
               <label className="block text-zinc-400 uppercase font-bold mb-1.5">Bank Institution Name</label>
-              <input type="text" className="input-luxury w-full bg-zinc-900 border border-zinc-800 focus:border-amber-500 rounded-xl p-3 text-white font-bold" defaultValue="Bank Central Asia (BCA)" />
+              <input type="text" className="input-luxury w-full bg-zinc-900 border border-zinc-800 focus:border-amber-500 rounded-xl p-3 text-white font-bold" value={bankName} onChange={e => setBankName(e.target.value)} />
             </div>
             <div>
               <label className="block text-zinc-400 uppercase font-bold mb-1.5">Account Number</label>
-              <input type="text" className="input-luxury w-full bg-zinc-900 border border-zinc-800 focus:border-amber-500 rounded-xl p-3 text-amber-400 font-bold text-sm" defaultValue="872-3612-874" />
+              <input type="text" className="input-luxury w-full bg-zinc-900 border border-zinc-800 focus:border-amber-500 rounded-xl p-3 text-amber-400 font-bold text-sm" value={accountNumber} onChange={e => setAccountNumber(e.target.value)} />
+            </div>
+            <div className="mt-6 border-t border-zinc-800 pt-6">
+              <div className="flex items-center gap-2 text-sky-400 font-bold uppercase tracking-wider mb-4">
+                <Shield className="w-4 h-4" />
+                <span>QRIS Configuration</span>
+              </div>
+              <label className="block text-zinc-400 uppercase font-bold mb-1.5">QRIS Image URL</label>
+              <input type="text" className="input-luxury w-full bg-zinc-900 border border-zinc-800 focus:border-sky-500 rounded-xl p-3 text-white font-bold" value={qrisUrl} onChange={e => setQrisUrl(e.target.value)} placeholder="https://example.com/qris.png" />
             </div>
           </div>
 
           <div className="flex justify-end font-sans">
-            <Button variant="luxury" className="px-8 py-5 text-xs font-bold gap-2">
+            <Button variant="luxury" className="px-8 py-5 text-xs font-bold gap-2" onClick={handleSavePaymentRules}>
               <Save className="w-4 h-4" />
               <span>Update Settlement Rules</span>
             </Button>
@@ -318,6 +448,108 @@ export default function CatalogManagerPage() {
                 <Button variant="luxury" className="flex-1 py-4 font-bold text-xs gap-1.5" onClick={handleSaveDiscount}>
                   <Tag className="w-3.5 h-3.5" />
                   <span>Deploy Promotion</span>
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Catalog Item Modal */}
+      <AnimatePresence>
+        {isCatalogModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 font-sans">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0, y: 15 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 15 }}
+              className="card-luxury bg-zinc-900 border border-zinc-800 rounded-3xl p-8 max-w-lg w-full shadow-2xl relative text-zinc-100"
+            >
+              <button onClick={() => setIsCatalogModalOpen(false)} className="absolute top-5 right-5 p-2 rounded-xl bg-zinc-800/50 text-zinc-400 hover:text-white"><X className="w-5 h-5" /></button>
+              <h2 className="text-2xl font-heading font-extrabold text-white mb-6">{catalogModalItem.id ? 'Edit Menu Item' : 'Add Menu Item'}</h2>
+
+              <div className="space-y-4 font-mono text-xs">
+                <div>
+                  <label className="block text-zinc-400 uppercase font-bold mb-1.5">Name</label>
+                  <input type="text" className="input-luxury w-full bg-zinc-950 border border-zinc-800 focus:border-amber-500 rounded-xl p-3 text-white" value={catalogModalItem.name || ''} onChange={e => setCatalogModalItem({...catalogModalItem, name: e.target.value})} />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-zinc-400 uppercase font-bold mb-1.5">Price</label>
+                    <input type="number" className="input-luxury w-full bg-zinc-950 border border-zinc-800 focus:border-amber-500 rounded-xl p-3 text-amber-400" value={catalogModalItem.price || ''} onChange={e => setCatalogModalItem({...catalogModalItem, price: parseInt(e.target.value) || 0})} />
+                  </div>
+                  <div>
+                    <label className="block text-zinc-400 uppercase font-bold mb-1.5">Category ID</label>
+                    <input type="number" className="input-luxury w-full bg-zinc-950 border border-zinc-800 focus:border-amber-500 rounded-xl p-3 text-white" value={catalogModalItem.categoryId || ''} onChange={e => setCatalogModalItem({...catalogModalItem, categoryId: parseInt(e.target.value) || 1})} />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-zinc-400 uppercase font-bold mb-1.5">Image URL</label>
+                  <input type="text" className="input-luxury w-full bg-zinc-950 border border-zinc-800 focus:border-amber-500 rounded-xl p-3 text-white" value={catalogModalItem.image || ''} onChange={e => setCatalogModalItem({...catalogModalItem, image: e.target.value})} />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-zinc-400 uppercase font-bold mb-1.5">Badge</label>
+                    <input type="text" className="input-luxury w-full bg-zinc-950 border border-zinc-800 focus:border-amber-500 rounded-xl p-3 text-white" value={catalogModalItem.badge || ''} onChange={e => setCatalogModalItem({...catalogModalItem, badge: e.target.value})} />
+                  </div>
+                  <div className="flex flex-col gap-2 justify-center">
+                    <label className="flex items-center gap-2 mt-4 cursor-pointer">
+                      <input type="checkbox" className="w-4 h-4 rounded border-zinc-800 bg-zinc-900 text-amber-500 focus:ring-amber-500 focus:ring-offset-zinc-900" checked={catalogModalItem.isBestSeller || false} onChange={e => setCatalogModalItem({...catalogModalItem, isBestSeller: e.target.checked})} />
+                      <span className="text-zinc-300 font-bold">Best Seller</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-8 font-sans">
+                <Button variant="outline" className="flex-1 py-4 font-bold text-xs" onClick={() => setIsCatalogModalOpen(false)}>Cancel</Button>
+                <Button variant="luxury" className="flex-1 py-4 font-bold text-xs gap-1.5" onClick={handleSaveCatalogItem}>
+                  <Save className="w-3.5 h-3.5" />
+                  <span>Save Item</span>
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Event Modal */}
+      <AnimatePresence>
+        {isEventModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 font-sans">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0, y: 15 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 15 }}
+              className="card-luxury bg-zinc-900 border border-zinc-800 rounded-3xl p-8 max-w-lg w-full shadow-2xl relative text-zinc-100"
+            >
+              <button onClick={() => setIsEventModalOpen(false)} className="absolute top-5 right-5 p-2 rounded-xl bg-zinc-800/50 text-zinc-400 hover:text-white"><X className="w-5 h-5" /></button>
+              <h2 className="text-2xl font-heading font-extrabold text-white mb-6">{eventModalItem.id ? 'Edit Event' : 'Add Event'}</h2>
+
+              <div className="space-y-4 font-mono text-xs">
+                <div>
+                  <label className="block text-zinc-400 uppercase font-bold mb-1.5">Title</label>
+                  <input type="text" className="input-luxury w-full bg-zinc-950 border border-zinc-800 focus:border-amber-500 rounded-xl p-3 text-white" value={eventModalItem.title || ''} onChange={e => setEventModalItem({...eventModalItem, title: e.target.value})} />
+                </div>
+                <div>
+                  <label className="block text-zinc-400 uppercase font-bold mb-1.5">Date (e.g. This Weekend)</label>
+                  <input type="text" className="input-luxury w-full bg-zinc-950 border border-zinc-800 focus:border-amber-500 rounded-xl p-3 text-white" value={eventModalItem.date || ''} onChange={e => setEventModalItem({...eventModalItem, date: e.target.value})} />
+                </div>
+                <div>
+                  <label className="block text-zinc-400 uppercase font-bold mb-1.5">Description</label>
+                  <textarea rows={3} className="input-luxury w-full bg-zinc-950 border border-zinc-800 focus:border-amber-500 rounded-xl p-3 text-white resize-none" value={eventModalItem.description || ''} onChange={e => setEventModalItem({...eventModalItem, description: e.target.value})} />
+                </div>
+                <div>
+                  <label className="block text-zinc-400 uppercase font-bold mb-1.5">Image URL</label>
+                  <input type="text" className="input-luxury w-full bg-zinc-950 border border-zinc-800 focus:border-amber-500 rounded-xl p-3 text-white" value={eventModalItem.image || ''} onChange={e => setEventModalItem({...eventModalItem, image: e.target.value})} />
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-8 font-sans">
+                <Button variant="outline" className="flex-1 py-4 font-bold text-xs" onClick={() => setIsEventModalOpen(false)}>Cancel</Button>
+                <Button variant="luxury" className="flex-1 py-4 font-bold text-xs gap-1.5" onClick={handleSaveEvent}>
+                  <Save className="w-3.5 h-3.5" />
+                  <span>Save Event</span>
                 </Button>
               </div>
             </motion.div>

@@ -40,6 +40,7 @@ function MenuContent() {
   const [showPaymentUpload, setShowPaymentUpload] = useState(false);
   const [showReviewPrompt, setShowReviewPrompt] = useState(false);
   const [currentOrderId, setCurrentOrderId] = useState<string | null>(null);
+  const [manualTableNumber, setManualTableNumber] = useState('');
   
   const [paymentMethod, setPaymentMethod] = useState<'bank_transfer' | 'qris'>('bank_transfer');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -130,7 +131,7 @@ function MenuContent() {
         items: Array.from(itemMap.values()),
         customerName: 'Online Resort Guest',
         orderType: 'dine_in',
-        tableNumber: table || undefined,
+        tableNumber: table || manualTableNumber || undefined,
         tableId: tableId || undefined,
         paymentMethod: paymentMethod,
         paymentProofUrl: paymentProofUrl,
@@ -208,9 +209,9 @@ function MenuContent() {
                 </h1>
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] font-mono text-zinc-400 uppercase tracking-widest">Resort Menu Ecosystem</span>
-                  {(table || tableId) && (
+                  {(table || tableId || manualTableNumber) && (
                     <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full font-mono font-bold uppercase border border-amber-500/40">
-                      Table {table || tableId}
+                      Table {table || tableId || manualTableNumber}
                     </span>
                   )}
                 </div>
@@ -491,11 +492,29 @@ function MenuContent() {
 
               {cart.length > 0 && (
                 <div className="p-6 border-t border-zinc-800/80 bg-zinc-950/90 space-y-4 font-mono">
-                  <div className="flex justify-between items-center text-sm">
+                  {!(table || tableId) && (
+                    <div className="space-y-2">
+                      <label className="text-zinc-400 uppercase tracking-wider text-xs font-bold">Table Number <span className="text-rose-500">*</span></label>
+                      <input
+                        type="text"
+                        value={manualTableNumber}
+                        onChange={(e) => setManualTableNumber(e.target.value)}
+                        placeholder="Enter your table number"
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500 transition-colors"
+                        required
+                      />
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center text-sm pt-2">
                     <span className="text-zinc-400 uppercase tracking-wider">Subtotal Amount</span>
                     <span className="text-amber-400 font-extrabold text-xl">Rp {cartTotal.toLocaleString('id-ID')}</span>
                   </div>
-                  <Button variant="luxury" className="w-full py-5 text-sm gap-2" onClick={handleCheckout}>
+                  <Button 
+                    variant="luxury" 
+                    className="w-full py-5 text-sm gap-2 disabled:opacity-50 disabled:cursor-not-allowed" 
+                    onClick={handleCheckout}
+                    disabled={!(table || tableId || manualTableNumber.trim())}
+                  >
                     <Sparkles className="w-4 h-4" />
                     <span>Proceed to Secure Transfer</span>
                   </Button>
@@ -545,7 +564,7 @@ function MenuContent() {
                 <div className="bg-amber-500/10 border border-amber-500/30 p-5 rounded-2xl text-center shadow-[0_0_20px_rgba(245,158,11,0.15)]">
                   <p className="text-zinc-400 uppercase tracking-widest mb-1 font-bold">Total Amount Due</p>
                   <p className="text-3xl font-extrabold text-amber-400">Rp {cartTotal.toLocaleString('id-ID')}</p>
-                  {(table || tableId) && <p className="text-[10px] text-amber-300/80 mt-1 uppercase">Allocated to Table {table || tableId}</p>}
+                  {(table || tableId || manualTableNumber) && <p className="text-[10px] text-amber-300/80 mt-1 uppercase">Allocated to Table {table || tableId || manualTableNumber}</p>}
                 </div>
                 
                 {paymentMethod === 'bank_transfer' ? (

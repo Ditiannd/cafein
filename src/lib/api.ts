@@ -65,6 +65,7 @@ export interface StoreStatus {
   id?: number;
   isOpen: boolean;
   announcementBanner: string | null;
+  paymentRules?: { bankName?: string; accountNumber?: string; qrisUrl?: string } | null;
 }
 
 export interface Order {
@@ -360,7 +361,7 @@ export const api = {
   // --- Store ---
   store: {
     getStatus: () => apiFetch<StoreStatus>('/api/store/status'),
-    setStatus: (data: { isOpen?: boolean; announcementBanner?: string }) =>
+    setStatus: (data: { isOpen?: boolean; announcementBanner?: string; paymentRules?: any }) =>
       apiFetch('/api/store/status', { method: 'PATCH', body: JSON.stringify(data) }),
   },
 

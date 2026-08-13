@@ -25,7 +25,7 @@ export async function PATCH(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { isOpen, announcementBanner } = body;
+    const { isOpen, announcementBanner, paymentRules } = body;
 
     const existing = await db.select().from(storeSettings).limit(1);
 
@@ -33,6 +33,7 @@ export async function PATCH(request: NextRequest) {
       const result = await db.insert(storeSettings).values({
         isOpen: isOpen ?? true,
         announcementBanner: announcementBanner ?? null,
+        paymentRules: paymentRules ?? null,
       }).returning();
       return NextResponse.json(result[0]);
     }
@@ -41,6 +42,7 @@ export async function PATCH(request: NextRequest) {
       .set({
         ...(isOpen !== undefined && { isOpen }),
         ...(announcementBanner !== undefined && { announcementBanner }),
+        ...(paymentRules !== undefined && { paymentRules }),
         updatedAt: new Date(),
       })
       .where(eq(storeSettings.id, existing[0].id))
