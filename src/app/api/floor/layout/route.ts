@@ -175,7 +175,8 @@ export async function PUT(request: NextRequest) {
     if (Array.isArray(updatedTables)) {
       for (const t of updatedTables) {
         if (!t.id) continue;
-        await db.update(tables).set({
+        
+        const updateData: any = {
           x: t.x,
           y: t.y,
           width: t.width,
@@ -186,7 +187,14 @@ export async function PUT(request: NextRequest) {
           isLocked: t.isLocked || false,
           isHidden: t.isHidden || false,
           updatedAt: new Date(),
-        }).where(eq(tables.id, t.id));
+        };
+
+        if (t.capacity !== undefined) updateData.capacity = t.capacity;
+        if (t.name !== undefined) updateData.name = t.name;
+        if (t.status !== undefined) updateData.status = t.status;
+        if (t.notes !== undefined) updateData.notes = t.notes;
+
+        await db.update(tables).set(updateData).where(eq(tables.id, t.id));
       }
     }
 
@@ -194,7 +202,8 @@ export async function PUT(request: NextRequest) {
     if (Array.isArray(updatedObjects)) {
       for (const obj of updatedObjects) {
         if (!obj.id) continue;
-        await db.update(layoutObjects).set({
+
+        const updateData: any = {
           x: obj.x,
           y: obj.y,
           width: obj.width,
@@ -205,7 +214,12 @@ export async function PUT(request: NextRequest) {
           isLocked: obj.isLocked || false,
           isHidden: obj.isHidden || false,
           updatedAt: new Date(),
-        }).where(eq(layoutObjects.id, obj.id));
+        };
+
+        if (obj.name !== undefined) updateData.name = obj.name;
+        if (obj.type !== undefined) updateData.type = obj.type;
+
+        await db.update(layoutObjects).set(updateData).where(eq(layoutObjects.id, obj.id));
       }
     }
 

@@ -49,34 +49,6 @@ export function InteractiveFloorPlanMock() {
   const [layoutObjects, setLayoutObjects] = useState<LayoutObjectItem[]>([]);
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
 
-  // Booking Form State
-  const [activeMode, setActiveMode] = useState<'info' | 'book'>('info');
-  const [bookingDate, setBookingDate] = useState(() => {
-    const today = new Date();
-    if (today.getHours() >= 22) {
-      today.setDate(today.getDate() + 1);
-    }
-    // Convert to local date string instead of ISO to avoid timezone shifts
-    const offset = today.getTimezoneOffset();
-    const localToday = new Date(today.getTime() - (offset * 60 * 1000));
-    return localToday.toISOString().split('T')[0];
-  });
-  const [bookingTime, setBookingTime] = useState(() => {
-    const today = new Date();
-    let hours = today.getHours() + 1;
-    if (hours < 8 || hours >= 22) {
-      hours = 8;
-    }
-    return `${hours.toString().padStart(2, '0')}:00`;
-  });
-  const [guestCount, setGuestCount] = useState(2);
-  const [customerName, setCustomerName] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
-  const [notes, setNotes] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [confirmedReservation, setConfirmedReservation] = useState<any | null>(null);
-
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.8);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -176,73 +148,6 @@ export function InteractiveFloorPlanMock() {
 
   const selectedTable = tables.find(t => t.id === selectedTableId);
 
-  // When table selection changes, reset form default guests to table capacity
-  const prevTableIdRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (selectedTableId !== prevTableIdRef.current) {
-      prevTableIdRef.current = selectedTableId;
-      if (selectedTableId) {
-        const table = tables.find(t => t.id === selectedTableId);
-        if (table) {
-          setGuestCount(Math.min(table.capacity, 10));
-        }
-        setActiveMode('info');
-        setErrorMsg(null);
-      }
-    }
-  }, [selectedTableId, tables]);
-
-  // --- Validate and Submit Booking ---
-  const handleBookingSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedTable) return;
-
-    setErrorMsg(null);
-    if (!customerName.trim()) {
-      setErrorMsg('Please enter your full name.');
-      return;
-    }
-    if (!customerPhone.trim()) {
-      setErrorMsg('Please enter your phone number.');
-      return;
-    }
-
-    // Business hours check: 08:00 to 22:00
-    const [hours] = bookingTime.split(':').map(Number);
-    if (hours < 8 || hours >= 22) {
-      setErrorMsg('Reservations are only available during sanctuary service hours (08:00 - 22:00).');
-      return;
-    }
-
-    // Default duration 90 mins
-    const reservationTimeISO = new Date(`${bookingDate}T${bookingTime}:00`).toISOString();
-
-    try {
-      setSubmitting(true);
-      const res = await api.reservations.create({
-        tableId: selectedTable.id,
-        customerName,
-        customerPhone,
-        customerEmail: `${customerPhone}@walkin.guest`,
-        guestCount,
-        reservationTime: reservationTimeISO,
-        durationMinutes: 90,
-        notes,
-      });
-
-      setConfirmedReservation({
-        ...res,
-        tableName: selectedTable.name,
-      });
-      await fetchLayout(true);
-    } catch (err: any) {
-      console.error('Reservation error:', err);
-      setErrorMsg(err.message || 'This table is already reserved for the selected time slot. Please choose another table or time.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   return (
     <div className="flex-1 flex flex-col lg:flex-row gap-5 w-full min-h-[550px] text-[#FDFBF7] font-sans select-none">
@@ -415,27 +320,6 @@ export function InteractiveFloorPlanMock() {
             ) : (
               <div className="flex-1 flex flex-col">
                 
-                {/* Action Mode Toggle */}
-                <div className="flex bg-[#141210]/80 p-1 rounded-xl border border-white/15 mb-5 shadow-inner">
-                  <button
-                    type="button"
-                    onClick={() => setActiveMode('info')}
-                    className={`flex-1 py-2 text-xs font-medium rounded-lg flex items-center justify-center gap-1.5 transition-all ${activeMode === 'info' ? 'bg-gradient-to-r from-[#F0BA53] to-[#E5A93C] text-[#141210] font-bold shadow-md' : 'text-[#C6C0B4] hover:text-[#FFFFFF]'}`}
-                  >
-                    <ShoppingBag className="w-3.5 h-3.5" />
-                    <span>Order Dine-In</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveMode('book')}
-                    className={`flex-1 py-2 text-xs font-medium rounded-lg flex items-center justify-center gap-1.5 transition-all ${activeMode === 'book' ? 'bg-gradient-to-r from-[#F0BA53] to-[#E5A93C] text-[#141210] font-bold shadow-md' : 'text-[#C6C0B4] hover:text-[#FFFFFF]'}`}
-                  >
-                    <Calendar className="w-3.5 h-3.5" />
-                    <span>Reserve (90m)</span>
-                  </button>
-                </div>
-
-                {activeMode === 'info' ? (
                   <div className="space-y-6 my-auto">
                     <div className="bg-[#141210]/80 p-4 rounded-2xl border border-white/15 space-y-3 text-xs shadow-sm">
                       <div className="flex justify-between text-[#C6C0B4]">
@@ -461,173 +345,14 @@ export function InteractiveFloorPlanMock() {
                           <span>Order Menu for Table {selectedTable.name}</span>
                         </Button>
                       </Link>
-                      <button
-                        type="button"
-                        onClick={() => setActiveMode('book')}
-                        className="w-full py-2.5 text-xs text-[#C6C0B4] hover:text-[#FFFFFF] font-medium underline text-center transition-colors block"
-                      >
-                        Want to reserve this seating sanctuary in advance instead?
-                      </button>
                     </div>
                   </div>
-                ) : (
-                  /* Reservation Booking Form */
-                  <form onSubmit={handleBookingSubmit} className="space-y-4 flex-1 flex flex-col">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-xs font-bold text-[#C6C0B4] mb-1 block">Date</label>
-                        <input
-                          type="date"
-                          required
-                          min={new Date().toISOString().split('T')[0]}
-                          value={bookingDate}
-                          onChange={(e) => setBookingDate(e.target.value)}
-                          className="w-full bg-[#141210] border border-white/15 rounded-xl px-3 py-2 text-xs text-[#FFFFFF] focus:outline-none focus:border-[#E5A93C] shadow-sm font-medium"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-bold text-[#C6C0B4] mb-1 block">Time (08:00 - 22:00)</label>
-                        <input
-                          type="time"
-                          required
-                          value={bookingTime}
-                          onChange={(e) => setBookingTime(e.target.value)}
-                          className="w-full bg-[#141210] border border-white/15 rounded-xl px-3 py-2 text-xs text-[#FFFFFF] focus:outline-none focus:border-[#E5A93C] shadow-sm font-medium"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-bold text-[#C6C0B4] mb-1 block">Number of Guests</label>
-                      <select
-                        value={guestCount}
-                        onChange={(e) => setGuestCount(Number(e.target.value))}
-                        className="w-full bg-[#141210] border border-white/15 rounded-xl px-3 py-2 text-xs text-[#FFFFFF] focus:outline-none focus:border-[#E5A93C] shadow-sm font-medium"
-                      >
-                        {Array.from({ length: selectedTable.capacity }, (_, i) => i + 1).map((num) => (
-                          <option key={num} value={num} className="bg-[#141210]">
-                            {num} {num === 1 ? 'Guest' : 'Guests'} {num === selectedTable.capacity ? '(Max Capacity)' : ''}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-bold text-[#C6C0B4] mb-1 block">Your Full Name</label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="e.g., Alexander Wright"
-                        value={customerName}
-                        onChange={(e) => setCustomerName(e.target.value)}
-                        className="w-full bg-[#141210] border border-white/15 rounded-xl px-3 py-2 text-xs text-[#FFFFFF] focus:outline-none focus:border-[#E5A93C] font-bold shadow-sm"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-bold text-[#C6C0B4] mb-1 block">Phone / WhatsApp</label>
-                      <input
-                        type="tel"
-                        required
-                        placeholder="e.g., +62 812 3456 7890"
-                        value={customerPhone}
-                        onChange={(e) => setCustomerPhone(e.target.value)}
-                        className="w-full bg-[#141210] border border-white/15 rounded-xl px-3 py-2 text-xs text-[#FFFFFF] focus:outline-none focus:border-[#E5A93C] shadow-sm font-medium"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-bold text-[#C6C0B4] mb-1 block">Special Requests (Optional)</label>
-                      <textarea
-                        rows={2}
-                        placeholder="e.g., Quiet corner preferred, celebrating anniversary..."
-                        value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
-                        className="w-full bg-[#141210] border border-white/15 rounded-xl p-2.5 text-xs text-[#FFFFFF] focus:outline-none focus:border-[#E5A93C] resize-none shadow-sm font-medium"
-                      />
-                    </div>
-
-                    {errorMsg && (
-                      <div className="p-3 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-300 text-xs flex items-center gap-2 shadow-sm font-medium">
-                        <AlertCircle className="w-4 h-4 shrink-0" />
-                        <span>{errorMsg}</span>
-                      </div>
-                    )}
-
-                    <div className="mt-auto pt-2">
-                      <Button
-                        type="submit"
-                        disabled={submitting}
-                        className="w-full bg-gradient-to-r from-[#F0BA53] via-[#FFFFFF] to-[#E5A93C] hover:opacity-95 text-[#141210] font-bold py-3.5 shadow-[0_0_25px_rgba(229,169,60,0.4)] gap-2 rounded-xl"
-                      >
-                        <Calendar className="w-4 h-4 text-[#141210]" />
-                        <span>{submitting ? 'Confirming Reservation...' : `Confirm 90-Min Reservation`}</span>
-                      </Button>
-                    </div>
-                  </form>
-                )}
 
               </div>
             )}
           </div>
         )}
       </div>
-
-      {/* Confirmation Modal */}
-      {confirmedReservation && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-6">
-          <div className="bg-[#241E19] border border-[#E5A93C]/40 rounded-3xl max-w-md w-full p-6 text-center shadow-[0_25px_60px_rgba(0,0,0,0.9)] space-y-5">
-            <div className="w-16 h-16 bg-emerald-500/20 border border-emerald-500/40 rounded-full flex items-center justify-center mx-auto text-emerald-400 shadow-md">
-              <CheckCircle2 className="w-8 h-8" />
-            </div>
-
-            <div>
-              <h3 className="text-xl font-bold text-[#FFFFFF] drop-shadow-sm">Reservation Confirmed</h3>
-              <p className="text-xs text-[#ECE6DD] mt-1 font-normal">Your 90-minute table reservation is officially locked in our sanctuary system.</p>
-            </div>
-
-            <div className="bg-[#141210]/90 p-4 rounded-2xl border border-white/15 text-xs space-y-2.5 text-left shadow-inner">
-              <div className="flex justify-between text-[#ECE6DD]">
-                <span className="text-[#C6C0B4]">Sanctuary Table:</span>
-                <span className="font-bold text-[#F0BA53] text-sm">{confirmedReservation.tableName}</span>
-              </div>
-              <div className="flex justify-between text-[#ECE6DD]">
-                <span className="text-[#C6C0B4]">Guest Name:</span>
-                <span className="font-bold text-[#FFFFFF]">{confirmedReservation.customerName}</span>
-              </div>
-              <div className="flex justify-between text-[#ECE6DD]">
-                <span className="text-[#C6C0B4]">Date & Time:</span>
-                <span className="font-sans font-bold text-[#FFFFFF]">
-                  {new Date(confirmedReservation.reservationTime).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
-                </span>
-              </div>
-              <div className="flex justify-between text-[#ECE6DD]">
-                <span className="text-[#C6C0B4]">Duration:</span>
-                <span className="font-sans text-emerald-400 font-bold">90 Minutes (Standard)</span>
-              </div>
-            </div>
-
-            <div className="w-36 h-36 bg-white rounded-xl p-2.5 mx-auto shadow-inner border border-white/20">
-              <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(JSON.stringify({ resId: confirmedReservation.id, table: confirmedReservation.tableName }))}`}
-                alt="Reservation QR"
-                className="w-full h-full object-contain"
-              />
-            </div>
-
-            <p className="text-xs text-[#C6C0B4] font-normal">
-              Present this QR code to our sanctuary host upon arrival.
-            </p>
-
-            <Button
-              onClick={() => setConfirmedReservation(null)}
-              className="w-full bg-gradient-to-r from-[#F0BA53] to-[#E5A93C] hover:opacity-95 text-[#141210] font-bold py-3 rounded-xl shadow-[0_0_25px_rgba(229,169,60,0.4)]"
-            >
-              Done
-            </Button>
-          </div>
-        </div>
-      )}
 
     </div>
   );

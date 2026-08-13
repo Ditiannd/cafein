@@ -122,7 +122,7 @@ export function Navbar({ isStoreOpen, onToggleStoreState }: NavbarProps) {
               href="/reservation" 
               className="group relative px-5 py-2 rounded-full bg-gradient-to-r from-[#D4982A] via-[#F0BA53] to-[#E5A93C] bg-[length:200%_100%] hover:bg-[position:100%_0] text-[#141210] font-sans font-bold text-xs tracking-wide shadow-[0_4px_15px_rgba(229,169,60,0.25)] hover:shadow-[0_6px_22px_rgba(229,169,60,0.4)] hover:scale-[1.02] active:scale-[0.98] transition-all duration-500 ease-out flex items-center gap-2 border border-white/20"
             >
-              <span>Reserve Table</span>
+              <span>View Floor Plan</span>
             </Link>
           </MagneticWrapper>
           
@@ -191,7 +191,7 @@ export function Navbar({ isStoreOpen, onToggleStoreState }: NavbarProps) {
                 onClick={() => setIsMobileMenuOpen(false)}
                 className="w-full py-2.5 rounded-full bg-gradient-to-r from-[#D4982A] via-[#F0BA53] to-[#E5A93C] text-[#141210] font-bold text-xs tracking-wide shadow-[0_4px_15px_rgba(229,169,60,0.25)] flex items-center justify-center gap-2"
               >
-                <span>Reserve Table</span>
+                <span>View Floor Plan</span>
               </Link>
             </div>
           </div>

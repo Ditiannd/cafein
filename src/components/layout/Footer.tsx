@@ -48,7 +48,7 @@ export function Footer() {
             <h4 className="font-heading font-bold text-sm text-[#FFFFFF] mb-5 tracking-widest uppercase drop-shadow-sm">Explore Sanctuary</h4>
             <ul className="space-y-3 font-sans text-xs text-[#C6C0B4] font-medium">
               <li><Link href="/menu" className="hover:text-[#F0BA53] transition-colors">Artisanal Online Menu</Link></li>
-              <li><Link href="/reservation" className="hover:text-[#F0BA53] transition-colors">Seating Reservations</Link></li>
+              <li><Link href="/reservation" className="hover:text-[#F0BA53] transition-colors">Interactive Floor Plan</Link></li>
               <li><a href="#experience" className="hover:text-[#F0BA53] transition-colors">Our Spatial Sanctuary</a></li>
               <li><a href="#reviews" className="hover:text-[#F0BA53] transition-colors">Patron Reflections</a></li>
             </ul>

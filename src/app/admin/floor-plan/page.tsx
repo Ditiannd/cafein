@@ -799,6 +799,7 @@ export default function AdminFloorPlanPage() {
                             setLayoutObjects(prev => prev.map(o => o.id === selectedItem.id ? { ...o, name: val } : o));
                           }
                         }}
+                        onBlur={() => pushHistory(tables, layoutObjects)}
                         className="w-full bg-zinc-900 border border-zinc-700/80 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500 font-semibold"
                       />
                     </div>
@@ -816,6 +817,7 @@ export default function AdminFloorPlanPage() {
                               const val = Number(e.target.value) || 1;
                               setTables(prev => prev.map(t => t.id === selectedItem.id ? { ...t, capacity: val } : t));
                             }}
+                            onBlur={() => pushHistory(tables, layoutObjects)}
                             className="w-full bg-zinc-900 border border-zinc-700/80 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-amber-500"
                           />
                         </div>
@@ -825,7 +827,9 @@ export default function AdminFloorPlanPage() {
                             value={(selectedItem as TableItem).status}
                             onChange={(e) => {
                               const val = e.target.value as TableStatus;
-                              setTables(prev => prev.map(t => t.id === selectedItem.id ? { ...t, status: val } : t));
+                              const nextTables = tables.map(t => t.id === selectedItem.id ? { ...t, status: val } : t);
+                              setTables(nextTables);
+                              pushHistory(nextTables, layoutObjects);
                             }}
                             className="w-full bg-zinc-900 border border-zinc-700/80 rounded-lg px-2.5 py-2 text-xs text-white capitalize focus:outline-none focus:border-amber-500 font-medium"
                           >
