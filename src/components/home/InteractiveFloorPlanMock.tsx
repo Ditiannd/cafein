@@ -42,7 +42,7 @@ const STATUS_COLORS: Record<TableStatus, { bg: string; border: string; text: str
   out_of_service: { bg: 'bg-zinc-800/60', border: 'border-zinc-700', text: 'text-zinc-500', label: 'Unavailable' },
 };
 
-export function InteractiveFloorPlanMock() {
+export function InteractiveFloorPlanMock({ onTableSelect }: { onTableSelect?: (tableId: string, tableName: string) => void }) {
   const [loading, setLoading] = useState(true);
   const [layoutVersion, setLayoutVersion] = useState<LayoutVersion | null>(null);
   const [tables, setTables] = useState<TableItem[]>([]);
@@ -339,12 +339,22 @@ export function InteractiveFloorPlanMock() {
                     </div>
 
                     <div className="space-y-3">
-                      <Link href={`/menu?tableId=${selectedTable.id}&table=${encodeURIComponent(selectedTable.name)}`} className="block">
-                        <Button className="w-full bg-gradient-to-r from-[#F0BA53] via-[#FFFFFF] to-[#E5A93C] hover:opacity-95 text-[#141210] font-bold py-3.5 shadow-[0_0_25px_rgba(229,169,60,0.4)] gap-2 rounded-xl">
+                      {onTableSelect ? (
+                        <Button 
+                          onClick={() => onTableSelect(selectedTable.id, selectedTable.name)}
+                          className="w-full bg-gradient-to-r from-[#F0BA53] via-[#FFFFFF] to-[#E5A93C] hover:opacity-95 text-[#141210] font-bold py-3.5 shadow-[0_0_25px_rgba(229,169,60,0.4)] gap-2 rounded-xl"
+                        >
                           <ShoppingBag className="w-4 h-4 text-[#141210]" />
-                          <span>Order Menu for Table {selectedTable.name}</span>
+                          <span>Select Table {selectedTable.name}</span>
                         </Button>
-                      </Link>
+                      ) : (
+                        <Link href={`/menu?tableId=${selectedTable.id}&table=${encodeURIComponent(selectedTable.name)}`} className="block">
+                          <Button className="w-full bg-gradient-to-r from-[#F0BA53] via-[#FFFFFF] to-[#E5A93C] hover:opacity-95 text-[#141210] font-bold py-3.5 shadow-[0_0_25px_rgba(229,169,60,0.4)] gap-2 rounded-xl">
+                            <ShoppingBag className="w-4 h-4 text-[#141210]" />
+                            <span>Order Menu for Table {selectedTable.name}</span>
+                          </Button>
+                        </Link>
+                      )}
                     </div>
                   </div>
 

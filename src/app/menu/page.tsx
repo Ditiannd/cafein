@@ -8,6 +8,8 @@ import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useApiQuery } from '@/lib/hooks';
 import { api, CatalogItem } from '@/lib/api';
+import { SlideDrawer } from '@/components/ui/SlideDrawer';
+import { InteractiveFloorPlanMock } from '@/components/home/InteractiveFloorPlanMock';
 
 interface CartItem extends CatalogItem {
   modifiers: {
@@ -41,6 +43,8 @@ function MenuContent() {
   const [showReviewPrompt, setShowReviewPrompt] = useState(false);
   const [currentOrderId, setCurrentOrderId] = useState<string | null>(null);
   const [manualTableNumber, setManualTableNumber] = useState('');
+  const [isTableDrawerOpen, setIsTableDrawerOpen] = useState(false);
+  const [selectedFloorTable, setSelectedFloorTable] = useState<{id: string, name: string} | null>(null);
   
   const [paymentMethod, setPaymentMethod] = useState<'bank_transfer' | 'qris'>('bank_transfer');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -131,8 +135,8 @@ function MenuContent() {
         items: Array.from(itemMap.values()),
         customerName: 'Online Resort Guest',
         orderType: 'dine_in',
-        tableNumber: table || manualTableNumber || undefined,
-        tableId: tableId || undefined,
+        tableNumber: table || selectedFloorTable?.name || manualTableNumber || undefined,
+        tableId: tableId || selectedFloorTable?.id || undefined,
         paymentMethod: paymentMethod,
         paymentProofUrl: paymentProofUrl,
       });
@@ -209,9 +213,9 @@ function MenuContent() {
                 </h1>
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] font-mono text-zinc-400 uppercase tracking-widest">Resort Menu Ecosystem</span>
-                  {(table || tableId || manualTableNumber) && (
+                  {(table || tableId || selectedFloorTable || manualTableNumber) && (
                     <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full font-mono font-bold uppercase border border-amber-500/40">
-                      Table {table || tableId || manualTableNumber}
+                      Table {table || selectedFloorTable?.name || manualTableNumber}
                     </span>
                   )}
                 </div>
@@ -493,16 +497,16 @@ function MenuContent() {
               {cart.length > 0 && (
                 <div className="p-6 border-t border-zinc-800/80 bg-zinc-950/90 space-y-4 font-mono">
                   {!(table || tableId) && (
-                    <div className="space-y-2">
-                      <label className="text-zinc-400 uppercase tracking-wider text-xs font-bold">Table Number <span className="text-rose-500">*</span></label>
-                      <input
-                        type="text"
-                        value={manualTableNumber}
-                        onChange={(e) => setManualTableNumber(e.target.value)}
-                        placeholder="Enter your table number"
-                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500 transition-colors"
-                        required
-                      />
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between bg-zinc-900 border border-zinc-800 rounded-xl p-3">
+                         <div className="flex flex-col">
+                           <span className="text-zinc-400 uppercase tracking-wider text-[10px] font-bold">Table Selection <span className="text-rose-500">*</span></span>
+                           <span className="text-white font-bold text-sm">{selectedFloorTable ? `Table ${selectedFloorTable.name}` : 'No table selected'}</span>
+                         </div>
+                         <Button variant="outline" className="text-xs py-1.5 px-3" onClick={() => setIsTableDrawerOpen(true)}>
+                           {selectedFloorTable ? 'Change' : 'Select Table'}
+                         </Button>
+                      </div>
                     </div>
                   )}
                   <div className="flex justify-between items-center text-sm pt-2">
@@ -513,7 +517,7 @@ function MenuContent() {
                     variant="luxury" 
                     className="w-full py-5 text-sm gap-2 disabled:opacity-50 disabled:cursor-not-allowed" 
                     onClick={handleCheckout}
-                    disabled={!(table || tableId || manualTableNumber.trim())}
+                    disabled={!(table || tableId || selectedFloorTable || manualTableNumber.trim())}
                   >
                     <Sparkles className="w-4 h-4" />
                     <span>Proceed to Secure Transfer</span>
@@ -564,7 +568,7 @@ function MenuContent() {
                 <div className="bg-amber-500/10 border border-amber-500/30 p-5 rounded-2xl text-center shadow-[0_0_20px_rgba(245,158,11,0.15)]">
                   <p className="text-zinc-400 uppercase tracking-widest mb-1 font-bold">Total Amount Due</p>
                   <p className="text-3xl font-extrabold text-amber-400">Rp {cartTotal.toLocaleString('id-ID')}</p>
-                  {(table || tableId || manualTableNumber) && <p className="text-[10px] text-amber-300/80 mt-1 uppercase">Allocated to Table {table || tableId || manualTableNumber}</p>}
+                  {(table || tableId || selectedFloorTable || manualTableNumber) && <p className="text-[10px] text-amber-300/80 mt-1 uppercase">Allocated to Table {table || selectedFloorTable?.name || manualTableNumber}</p>}
                 </div>
                 
                 {paymentMethod === 'bank_transfer' ? (
@@ -719,6 +723,16 @@ function MenuContent() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Apple Maps-Style Spatial Live Floor Planner Drawer */}
+      <SlideDrawer isOpen={isTableDrawerOpen} onClose={() => setIsTableDrawerOpen(false)}>
+        <InteractiveFloorPlanMock 
+          onTableSelect={(id, name) => {
+            setSelectedFloorTable({ id, name });
+            setIsTableDrawerOpen(false);
+          }} 
+        />
+      </SlideDrawer>
     </div>
   );
 }
